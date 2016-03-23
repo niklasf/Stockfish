@@ -1,0 +1,13 @@
+os: Visual Studio 2013
+
+shallow_clone: true
+clone_depth: 1
+
+platform: x64
+
+install:
+  - wget http://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win64/Personal%20Builds/mingw-builds/4.9.2/threads-posix/seh/x86_64-4.9.2-release-posix-seh-rt_v4-rev2.7z
+  - 7z x -oC:\MinGW\msys\1.0\ x86_64-4.9.2-release-posix-seh-rt_v4-rev2.7z
+
+build_script:
+  - C:\MinGW\msys\1.0\bin\sh.exe --login /c/projects/Stockfish/msys_build.sh
