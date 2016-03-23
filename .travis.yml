@@ -28,7 +28,7 @@ script:
 - make clean && make profile-build ARCH=x86-64-modern EXE=../$BASEEXE-x86_64-modern
 - make clean && make build ARCH=x86-64-bmi2 EXE=../$BASEEXE-x86_64-bmi2
 - cd ..
-- ls -lh "$BASEEXE*"
+- ls -lh
 
 deploy:
   provider: releases
@@ -38,6 +38,8 @@ deploy:
     - $BASEEXE-x86_64
     - $BASEEXE-x86_64-modern
     - $BASEEXE-x86_64-bmi2
+  skip_cleanup: true
   on:
+    tags: true
     repo: niklasf/Stockfish
     branch: fishnet
