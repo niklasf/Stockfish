@@ -8,21 +8,27 @@ matrix:
     dist: trusty
     env:
     - BASEEXE=stockfish-linux
+    - TARGET=profile-build
+    - MODERN_TARGET=profile-build
+    - BMI2_TARGET=build
   - os: osx
     compiler: gcc
     env:
     - COMPILER=g++-4.8
     - COMP=gcc
     - BASEEXE=stockfish-osx
+    - TARGET=profile-build
+    - MODERN_TARGET=build
+    - BMI2_TARGET=build
 
 before_install:
 - if [ -f /proc/cpuinfo ] ; then cat /proc/cpuinfo; fi
 
 script:
 - cd src
-- make clean && make profile-build ARCH=x86-64 EXE=../$BASEEXE-x86_64
-- make clean && make profile-build ARCH=x86-64-modern EXE=../$BASEEXE-x86_64-modern
-- make clean && make build ARCH=x86-64-bmi2 EXE=../$BASEEXE-x86_64-bmi2
+- make clean && make $TARGET ARCH=x86-64 EXE=../$BASEEXE-x86_64
+- make clean && make $MODERN_TARGET ARCH=x86-64-modern EXE=../$BASEEXE-x86_64-modern
+- make clean && make $BMI2_TARGET ARCH=x86-64-bmi2 EXE=../$BASEEXE-x86_64-bmi2
 - cd ..
 - ls -lh
 
