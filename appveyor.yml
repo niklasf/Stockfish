@@ -24,7 +24,7 @@ deploy:
   description: 'lichess.org custom Stockfish binaries'
   skip_cleanup: true
   provider: GitHub
-  api_key:
+  auth_token:
     secure: LzPD844j3c4td5wueJp9wKYa2RC+RGA03W82THP3B0jySkJ1FQw9Fn8XZVjPfkLI
   artifact: /stockfish-windows-.*/
   draft: false
