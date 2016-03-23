@@ -15,10 +15,6 @@ matrix:
     - COMP=gcc
     - BASEEXE=stockfish-osx
 
-branches:
-  only:
-  - fishnet
-
 before_install:
 - if [ -f /proc/cpuinfo ] ; then cat /proc/cpuinfo; fi
 
