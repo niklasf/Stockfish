@@ -4,24 +4,17 @@ matrix:
   include:
     - os: linux
       compiler: gcc
-      addons:
-        apt:
-          sources: ['ubuntu-toolchain-r-test']
-          packages: ['g++-4.8']
-      env:
-        - COMPILER=g++-4.8
-        - COMP=gcc
-
-    - os: linux
-      compiler: gcc
       sudo: required
       dist: trusty
+      env:
+        - BASEEXE=stockfish-linux
 
     - os: osx
       compiler: gcc
       env:
         - COMPILER=g++-4.8
         - COMP=gcc
+        - BASEEXE=stockfish-osx
 
 branches:
   only:
@@ -30,8 +23,10 @@ branches:
 before_install:
   - if [ -f /proc/cpuinfo ] ; then cat /proc/cpuinfo; fi
 
-before_script:
-  - cd src
-
 script:
-  - make clean && make build ARCH=x86-64
+  - cd src
+  - make clean && make profile-build ARCH=x86-64 EXE=../$BASEEXE-x86_64
+  - make clean && make profile-build ARCH=x86-64-modern EXE=../$BASEEXE-x86_64-modern
+  - make clean && make build ARCH=x86-64-bmi2 EXE=../$BASEEXE-x86_64-bmi2
+  - cd ..
+  - ls -lh
