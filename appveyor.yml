@@ -18,3 +18,17 @@ build_script:
 
 artifacts:
   - path: stockfish-windows-*
+
+deploy:
+  release: $(APPVEYOR_REPO_TAG_NAME)
+  description: 'lichess.org custom Stockfish binaries'
+  skip_cleanup: true
+  provider: GitHub
+  api_key:
+    secure: LzPD844j3c4td5wueJp9wKYa2RC+RGA03W82THP3B0jySkJ1FQw9Fn8XZVjPfkLI
+  artifact: /stockfish-windows-.*/
+  draft: false
+  prerelease: true
+  on:
+    repo: niklasf/Stockfish
+    appveyor_repo_tag: true
