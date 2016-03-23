@@ -17,4 +17,4 @@ build_script:
   - C:\MinGW\msys\1.0\bin\sh.exe --login /c/projects/Stockfish/msys_build.sh
 
 artifacts:
-  - path: C:\projects\Stockfish\src\stockfish-windows-*
+  - path: stockfish-windows-*
