@@ -7,7 +7,7 @@ matrix:
     sudo: required
     dist: trusty
     env:
-    - BASEEXE=stockfish-linux
+    - BASEEXE=stockfish
     - TARGET=profile-build
     - MODERN_TARGET=profile-build
     - BMI2_TARGET=build
@@ -26,9 +26,9 @@ before_install:
 
 script:
 - cd src
-- make clean && make $TARGET ARCH=x86-64 EXE=../$BASEEXE-x86_64
-- make clean && make $MODERN_TARGET ARCH=x86-64-modern EXE=../$BASEEXE-x86_64-modern
-- make clean && make $BMI2_TARGET ARCH=x86-64-bmi2 EXE=../$BASEEXE-x86_64-bmi2
+- make clean && make profile-build ARCH=x86-64 EXE=../$BASEEXE-x86_64
+- if [ "$BASEEXE" != "stockfish-osx" ]; then make clean && make profile-build ARCH=x86-64-modern EXE=../$BASEEXE-x86_64-modern; fi
+- if [ "$BASEEXE" != "stockfish-osx" ]; then make clean && make build ARCH=x86-64-bmi2 EXE=../$BASEEXE-x86_64-bmi2; fi
 - cd ..
 - ls -lh
 
@@ -36,10 +36,9 @@ deploy:
   provider: releases
   api_key:
     secure: Syi4MLMPTt+p3MOcSpg3goBU80Nt/aqhmvhnE6BLrwaKXg40fTA/swBeNcKsV+wxAFkI8QjAi/IYS9xuNBN4lOZ7TbC8ICEDzPfq+jIhlMWJZPbWxXZxMnhXdqQv0Ohw1C7SyPNcLDzYKGaawNbuvVHnV64s4mTak5lS/lz9NU3jgj4ZEhp4mSCB6cwkiqJG0EzCszx93KK6bVnGLXSQRO+MmZEnoSksA790OFUuMhasokqHkIkhDCy5HZ6cHFGRCdZ1xWPSnhOOjIP10j6E1aXKaRBKL7XdFWGeFM7bXSmZf+X3uWIZ+lP8w5gBEpkFRzmjgGGH7lriZ0wim65jJAQ9NaDINPGwYE96yfbIVN+yHqXcKPc6PboHntV70hUxfOEYWeOFrHYCzlXfwN1MenwmmDJhT2bwoSAqO8jdaoczPLX+z4J0fP/19TI9ULSM8IwYOxWyOHUagtQ9ouZURrO402iptNdCDxjHNiYjtCAl34JvwVDnHqbHE1woy9nyoHDobNFdeID6nsBXdugVVzmh1WTG41vOW+qbU4XqMv+fAbVWnosCIuUZu2hpz97vOXT7AZUoTvAM3zKsl46pmELzufM5z2pCupOOsUaV1+va1NkGygnKC3r7QKEgAi1sMq7146qsvHLaV5yJ74Z0avWn18cFntnjaqGI3X9hAC8=
+  file_glob: true
   file:
-    - $BASEEXE-x86_64
-    - $BASEEXE-x86_64-modern
-    - $BASEEXE-x86_64-bmi2
+    - $BASEEXE-*
   skip_cleanup: true
   on:
     tags: true
