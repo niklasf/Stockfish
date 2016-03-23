@@ -8,18 +8,12 @@ matrix:
     dist: trusty
     env:
     - BASEEXE=stockfish
-    - TARGET=profile-build
-    - MODERN_TARGET=profile-build
-    - BMI2_TARGET=build
   - os: osx
     compiler: gcc
     env:
     - COMPILER=g++-4.8
     - COMP=gcc
     - BASEEXE=stockfish-osx
-    - TARGET=profile-build
-    - MODERN_TARGET=build
-    - BMI2_TARGET=build
 
 before_install:
 - if [ -f /proc/cpuinfo ] ; then cat /proc/cpuinfo; fi
