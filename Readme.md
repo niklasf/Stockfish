@@ -14,7 +14,7 @@ Operating System | Status | profile-build | build
 --- | --- | --- | ---
 Linux | [![travis-ci](https://travis-ci.org/niklasf/Stockfish.svg?branch=fishnet)](https://travis-ci.org/niklasf/Stockfish) | x86-64, x86-64-modern | x86-64-bmi2
 Mac OS | [![travis-ci](https://travis-ci.org/niklasf/Stockfish.svg?branch=fishnet)](https://travis-ci.org/niklasf/Stockfish) | x86-64 |
-Windows | [![appveyor](https://ci.appveyor.com/api/projects/status/ya04m2f5k830wl91/branch/fishnet?svg=true)](https://ci.appveyor.com/project/niklasf/stockfish) | | x86-64, x86-64-modern, x86-64-bmi2
+Windows | [![appveyor](https://ci.appveyor.com/api/projects/status/ya04m2f5k830wl91/branch/fishnet?svg=true)](https://ci.appveyor.com/project/niklasf/stockfish) | x86-64, x86-64-modern, x86-64-bmi2 |
 
 License
 -------
