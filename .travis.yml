@@ -4,10 +4,16 @@ matrix:
   include:
   - os: linux
     compiler: gcc
-    sudo: required
-    dist: trusty
+    addons:
+      apt:
+        sources:
+        - ubuntu-toolchain-r-test
+        packages:
+        - g++-4.7
     env:
     - BASEEXE=stockfish
+    - COMPILER=g++-4.7
+    - COMP=gcc
   - os: osx
     compiler: gcc
     env:
