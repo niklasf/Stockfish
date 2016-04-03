@@ -10,7 +10,7 @@ ldd --version || echo "no ldd"
 echo
 echo "### CPU capabilities"
 echo
-grep "^flags" /proc/cpuinfos || echo
+grep "^flags" /proc/cpuinfo || echo
 
 echo
 echo "### Running profile-build for x86-64 ..."
