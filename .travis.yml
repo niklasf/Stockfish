@@ -6,6 +6,8 @@ matrix:
     sudo: required
     services:
     - docker
+    env:
+    - BASEEXE=stockfish
   - os: osx
     compiler: gcc
     env:
