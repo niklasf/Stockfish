@@ -16,7 +16,8 @@ install:
 build_script:
   - ps: "C:"
   - ps: cd \projects\Stockfish\
-  - ps: C:\MinGW\msys\1.0\bin\sh.exe --login /c/projects/Stockfish/msys_build.sh
+  - echo %CD%
+  - C:\MinGW\msys\1.0\bin\sh.exe --login /c/projects/Stockfish/msys_build.sh
 
 artifacts:
   - path: stockfish-windows-*
