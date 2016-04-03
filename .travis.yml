@@ -22,7 +22,7 @@ before_install:
 script: |
   if [ "$BASEEXE" != "stockfish-osx" ]; then
     docker build --tag wheezy-for-stockfish .
-    docker run --volume $PWD:/home/builder/Stockfish wheezy-for-stockfish
+    docker run --volume $PWD:/home/builder/Stockfish --user $(id -u) wheezy-for-stockfish
   else
     ./unix_build.sh
   fi
