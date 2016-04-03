@@ -14,7 +14,7 @@ install:
   - 7z x -oC:\MinGW\msys\1.0\ x86_64-4.9.2-release-posix-seh-rt_v4-rev2.7z > nul
 
 build_script:
-  - ps: C:
+  - ps: "C:"
   - ps: cd \projects\Stockfish\
   - ps: C:\MinGW\msys\1.0\bin\sh.exe --login /c/projects/Stockfish/msys_build.sh
 
