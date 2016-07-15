@@ -124,7 +124,7 @@ namespace {
         opposed    = theirPawns & forward_bb(Us, s);
         stoppers   = theirPawns & passed_pawn_mask(Us, s);
         lever      = theirPawns & pawnAttacksBB[s];
-        doubled    = ourPawns   & forward_bb(Us, s);
+        doubled    = ourPawns   & (s + Up);
         neighbours = ourPawns   & adjacent_files_bb(f);
         phalanx    = neighbours & rank_bb(s);
         supported  = neighbours & rank_bb(s - Up);
@@ -148,9 +148,8 @@ namespace {
         }
 
         // Passed pawns will be properly scored in evaluation because we need
-        // full attack info to evaluate them. Only the frontmost passed
-        // pawn on each file is considered a true passed pawn.
-        if (!(stoppers | doubled))
+        // full attack info to evaluate them.
+        if (!stoppers && !(ourPawns & forward_bb(Us, s)))
             e->passedPawns[Us] |= s;
 
         // Score this pawn
@@ -167,7 +166,7 @@ namespace {
             score += Connected[opposed][!!phalanx][more_than_one(supported)][relative_rank(Us, s)];
 
         if (doubled)
-            score -= Doubled / distance<Rank>(s, frontmost_sq(Us, doubled));
+            score -= Doubled;
 
         if (lever)
             score += Lever[relative_rank(Us, s)];

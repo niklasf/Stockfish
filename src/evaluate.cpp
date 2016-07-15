@@ -196,6 +196,7 @@ namespace {
   const Score OtherCheck          = S(10, 10);
   const Score ThreatByHangingPawn = S(71, 61);
   const Score LooseEnemies        = S( 0, 25);
+  const Score WeakQueen           = S(35,  0);
   const Score Hanging             = S(48, 27);
   const Score ThreatByPawnPush    = S(38, 22);
   const Score Unstoppable         = S( 0, 20);
@@ -219,10 +220,10 @@ namespace {
 
   // Penalties for enemy's safe checks
   const int QueenContactCheck = 89;
-  const int QueenCheck        = 52;
-  const int RookCheck         = 45;
-  const int BishopCheck       = 5;
-  const int KnightCheck       = 17;
+  const int QueenCheck        = 62;
+  const int RookCheck         = 57;
+  const int BishopCheck       = 48;
+  const int KnightCheck       = 78;
 
 
   // eval_init() initializes king and attack bitboards for a given color
@@ -358,6 +359,13 @@ namespace {
                     score -= (TrappedRook - make_score(mob * 22, 0)) * (1 + !pos.can_castle(Us));
             }
         }
+
+        if (Pt == QUEEN)
+        {
+            // Penalty if any relative pin or discovered attack against the queen
+            if (pos.slider_blockers(pos.pieces(), pos.pieces(Them, ROOK, BISHOP), s))
+                score -= WeakQueen;
+        }
     }
 
     if (DoTrace)
@@ -409,8 +417,8 @@ namespace {
         // the pawn shelter (current 'score' value).
         attackUnits =  std::min(72, ei.kingAttackersCount[Them] * ei.kingAttackersWeight[Them])
                      +  9 * ei.kingAdjacentZoneAttacksCount[Them]
-                     + 27 * popcount(undefended)
-                     + 11 * (popcount(b) + !!ei.pinnedPieces[Us])
+                     + 21 * popcount(undefended)
+                     + 12 * (popcount(b) + !!ei.pinnedPieces[Us])
                      - 64 * !pos.count<QUEEN>(Them)
                      - mg_value(score) / 8;
 
@@ -609,9 +617,14 @@ namespace {
 #ifdef KOTH
     if (pos.is_koth())
     {
-        int r = RANK_7 - pos.koth_distance(Us);
-        Value mbonus = Passed[MG][r], ebonus = Passed[EG][r];
-        score += make_score(mbonus, ebonus);
+        Square ksq = pos.square<KING>(Us);
+        Square center[4] = {SQ_E4, SQ_D4, SQ_D5, SQ_E5};
+        for(int i = 0; i<4; i++){        
+            int dist = distance(ksq, center[i])+popcount(pos.attackers_to(center[i]) & pos.pieces(Them))+popcount(pos.pieces(Us) & center[i]) ;
+            int r = std::max(RANK_7 - dist, 0);
+            Value mbonus = Passed[MG][r], ebonus = 2*Passed[EG][r];
+            score += make_score(mbonus, ebonus);
+        }
     }
 #endif
     while (b)
@@ -619,6 +632,7 @@ namespace {
         Square s = pop_lsb(&b);
 
         assert(pos.pawn_passed(Us, s));
+        assert(!(pos.pieces(PAWN) & forward_bb(Us, s)));
 
         int r = relative_rank(Up, s) - RANK_2;
         int rr = r * (r - 1);
@@ -801,9 +815,9 @@ namespace {
 #ifdef HORDE
     if (pos.is_horde() && Us == WHITE)
     {
-        weight += weight + pos.count<PAWN>(Them);
-        bonus = bonus * weight * weight / 4;
-        return make_score(bonus, bonus);
+        weight = (pos.count<PAWN>(Us) + int(pos.non_pawn_material(BLACK)/PawnValueMg))/5;
+        bonus = bonus * weight * weight / 10;
+        return make_score(bonus, bonus) + make_score(pos.non_pawn_material(BLACK)/4,0);
     }
 #endif
 
@@ -854,7 +868,7 @@ namespace {
             // Endgame with opposite-colored bishops, but also other pieces. Still
             // a bit drawish, but not as drawish as with only the two bishops.
             else
-                sf = ScaleFactor(46 * sf / SCALE_FACTOR_NORMAL);
+                sf = ScaleFactor(46);
         }
         // Endings where weaker side can place his king in front of the opponent's
         // pawns are drawish.
@@ -916,8 +930,13 @@ Value Eval::evaluate(const Position& pos) {
         if (pos.is_three_check_loss())
             return -VALUE_MATE;
 
-        score += ChecksGivenBonus[pos.checks_given()];
-        score -= ChecksGivenBonus[pos.checks_taken()];
+        if(pos.side_to_move() == WHITE){
+            score += ChecksGivenBonus[pos.checks_given()];
+            score -= ChecksGivenBonus[pos.checks_taken()];
+        }else{
+            score -= ChecksGivenBonus[pos.checks_given()];
+            score += ChecksGivenBonus[pos.checks_taken()];
+        }
     }
 #endif
 #ifdef HORDE
