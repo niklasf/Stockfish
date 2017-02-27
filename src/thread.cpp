@@ -20,6 +20,8 @@
 
 #include <algorithm> // For std::count
 #include <cassert>
+#include <iostream> // TODO: Remove (debugging)
+#include <pthread.h>
 
 #include "movegen.h"
 #include "search.h"
@@ -38,6 +40,12 @@ Thread::Thread() {
   maxPly = callsCnt = 0;
   tbHits = 0;
   idx = Threads.size(); // Start from 0
+
+  size_t stack_size;
+  pthread_attr_t attr;
+  pthread_attr_init(&attr);
+  pthread_attr_getstacksize(&attr, &stack_size);
+  std::cout << "Stack size: " << stack_size << std::endl;
 
   std::unique_lock<Mutex> lk(mutex);
   searching = true;
