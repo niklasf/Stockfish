@@ -27,6 +27,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <pthread.h>
 
 #include "material.h"
 #include "movepick.h"
@@ -43,7 +44,7 @@
 
 class Thread {
 
-  std::thread nativeThread;
+  pthread_t nativeThread;
   Mutex mutex;
   ConditionVariable sleepCondition;
   bool exit, searching;
