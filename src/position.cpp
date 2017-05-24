@@ -63,6 +63,9 @@ namespace {
 
 const string PieceToChar(" PNBRQK  pnbrqk");
 
+const Piece Pieces[] = { W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
+                         B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING };
+
 // min_attacker() is a helper function used by see_ge() to locate the least
 // valuable attacker for the side to move, remove the attacker we just found
 // from the bitboards and scan for new X-ray attacks behind it.
@@ -73,7 +76,7 @@ PieceType min_attacker(const Bitboard* bb, Square to, Bitboard stmAttackers,
 
   Bitboard b = stmAttackers & bb[Pt];
   if (!b)
-      return min_attacker<Pt+1>(bb, to, stmAttackers, occupied, attackers);
+      return min_attacker<Pt + 1>(bb, to, stmAttackers, occupied, attackers);
 
   occupied ^= b & ~(b - 1);
 
@@ -90,36 +93,6 @@ PieceType min_attacker(const Bitboard* bb, Square to, Bitboard stmAttackers,
 template<>
 PieceType min_attacker<KING>(const Bitboard*, Square, Bitboard, Bitboard&, Bitboard&) {
   return KING; // No need to update bitboards: it is the last cycle
-}
-
-template<int Pt>
-PieceType min_attacker_anti(const Bitboard* bb, Square to, Bitboard stmAttackers,
-                       Bitboard& occupied, Bitboard& attackers) {
-
-  Bitboard b = stmAttackers & bb[Pt];
-  if (!b)
-      return min_attacker_anti<Pt-1>(bb, to, stmAttackers, occupied, attackers);
-
-  occupied ^= b & ~(b - 1);
-
-  if (Pt == PAWN || Pt == BISHOP || Pt == QUEEN || Pt == KING)
-      attackers |= attacks_bb<BISHOP>(to, occupied) & (bb[BISHOP] | bb[QUEEN]);
-
-  if (Pt == ROOK || Pt == QUEEN || Pt == KING)
-      attackers |= attacks_bb<ROOK>(to, occupied) & (bb[ROOK] | bb[QUEEN]);
-
-  attackers &= occupied; // After X-ray that may add already processed pieces
-  return (PieceType)Pt;
-}
-
-template<>
-PieceType min_attacker_anti<NO_PIECE_TYPE>(const Bitboard* bb, Square to, Bitboard stmAttackers,
-                       Bitboard& occupied, Bitboard& attackers) {
-
-  Bitboard b = stmAttackers & bb[KING];
-  if (b)
-      return min_attacker_anti<KING>(bb, to, stmAttackers, occupied, attackers);
-  return NO_PIECE_TYPE; // No need to update bitboards: it is the last cycle
 }
 
 } // namespace
@@ -328,6 +301,10 @@ Position& Position::set(const string& fenStr, bool isChess960, Variant v, StateI
 #ifdef ANTI
       if (is_anti())
       {
+#ifdef SUICIDE
+          if (is_suicide())
+              continue;
+#endif
           // X-FEN is ambiguous if there are multiple kings
           // Assume the first king on the rank has castling rights
           const Square* kl = squares<KING>(c);
@@ -711,9 +688,9 @@ Phase Position::game_phase() const {
       return Phase(count<PAWN>(is_horde_color(WHITE) ? WHITE : BLACK) * PHASE_MIDGAME / 36);
 #endif
 
-  npm = std::max(PhaseLimit[variant()][EG], std::min(npm, PhaseLimit[variant()][MG]));
+  npm = std::max(EndgameLimit, std::min(npm, MidgameLimit));
 
-  return Phase(((npm - PhaseLimit[variant()][EG]) * PHASE_MIDGAME) / (PhaseLimit[variant()][MG] - PhaseLimit[variant()][EG]));
+  return Phase(((npm - EndgameLimit) * PHASE_MIDGAME) / (MidgameLimit - EndgameLimit));
 }
 
 
@@ -992,7 +969,7 @@ bool Position::pseudo_legal(const Move m) const {
                && empty(to - pawn_push(us))))
           return false;
   }
-  else if (!(attacks_from(pc, from) & to))
+  else if (!(attacks_from(type_of(pc), from) & to))
       return false;
 
   // Evasions generator already takes care to avoid some kind of illegal moves
@@ -1050,15 +1027,23 @@ bool Position::gives_check(Move m) const {
   if (is_atomic())
   {
       Square ksq = square<KING>(~sideToMove);
-      if (ksq == SQ_NONE)
-          return false;
+      Bitboard attacks = attacks_from<KING>(ksq);
+
       // If kings are adjacent, there is no check
-      // If kings were adjacent, there may be direct checks
-      if (type_of(piece_on(from)) == KING)
+      // If kings were adjacent, there may be direct checks (minus castle rook)
+      if (type_of(m) == CASTLING)
       {
-          if (attacks_from<KING>(ksq) & to)
+          Square kto = relative_square(sideToMove, to > from ? SQ_G1 : SQ_C1);
+          if (attacks & kto)
               return false;
-          else if (attacks_from<KING>(ksq) & from)
+          if ((attacks & from) && (attackers_to(ksq) & (pieces(sideToMove) ^ to)))
+              return true;
+      }
+      else if (type_of(piece_on(from)) == KING)
+      {
+          if (attacks & to)
+              return false;
+          if (attacks & from)
           {
               if (attackers_to(ksq) & pieces(sideToMove, KNIGHT, PAWN))
                   return true;
@@ -1067,7 +1052,7 @@ bool Position::gives_check(Move m) const {
                     || (attacks_bb<BISHOP>(ksq, occupied) & pieces(sideToMove, QUEEN, BISHOP));
           }
       }
-      else if (attacks_from<KING>(ksq) & square<KING>(sideToMove))
+      else if (attacks & square<KING>(sideToMove))
           return false;
       if (capture(m))
       {
@@ -1106,7 +1091,7 @@ bool Position::gives_check(Move m) const {
       return false;
 
   case PROMOTION:
-      return attacks_bb(Piece(promotion_type(m)), to, pieces() ^ from) & square<KING>(~sideToMove);
+      return attacks_bb(promotion_type(m), to, pieces() ^ from) & square<KING>(~sideToMove);
 
   // En passant capture with check? We have already handled the case
   // of direct checks and ordinary discovered check, so the only case we
@@ -1854,11 +1839,6 @@ bool Position::see_ge(Move m, Value v) const {
           return relativeStm;
 
       // Locate and remove the next least valuable attacker
-#ifdef ANTI
-      if (is_anti()) // Antichess: QUEEN-ROOK-BISHOP-KNIGHT-PAWN-KING
-          nextVictim = min_attacker_anti<QUEEN>(byTypeBB, to, stmAttackers, occupied, attackers);
-      else
-#endif
       nextVictim = min_attacker<PAWN>(byTypeBB, to, stmAttackers, occupied, attackers);
 
       // Don't allow pinned pieces to attack pieces except the king
@@ -1886,6 +1866,9 @@ bool Position::see_ge(Move m, Value v) const {
 
 bool Position::is_draw(int ply) const {
 
+#ifdef CRAZYHOUSE
+  if (is_house()) {} else
+#endif
   if (st->rule50 > 99 && (!checkers() || MoveList<LEGAL>(*this).size()))
       return true;
 

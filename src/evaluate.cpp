@@ -88,7 +88,7 @@ namespace {
 
     // kingRing[color] is the zone around the king which is considered
     // by the king safety evaluation. This consists of the squares directly
-    // adjacent to the king, and the three (or two, for a king on an edge file)
+    // adjacent to the king, and (only for a king on its first rank) the
     // squares two ranks in front of the king. For instance, if black's king
     // is on g8, kingRing[BLACK] is a bitboard containing the squares f8, h8,
     // f7, g7, h7, f6, g6 and h6.
@@ -124,9 +124,9 @@ namespace {
     { S(-48,-59), S(-20,-23), S( 16, -3), S( 26, 13), S( 38, 24), S( 51, 42), // Bishops
       S( 55, 54), S( 63, 57), S( 63, 65), S( 68, 73), S( 81, 78), S( 81, 86),
       S( 91, 88), S( 98, 97) },
-    { S(-60,-77), S(-26,-20), S(-11, 27), S( -6, 57), S( -3, 69), S( -1, 82), // Rooks
-      S( 10,109), S( 16,121), S( 24,131), S( 25,143), S( 32,155), S( 32,163),
-      S( 43,167), S( 48,171), S( 56,173) },
+    { S(-58,-76), S(-27,-18), S(-15, 28), S(-10, 55), S( -5, 69), S( -2, 82), // Rooks
+      S(  9,112), S( 16,118), S( 30,132), S( 29,142), S( 32,155), S( 38,165),
+      S( 46,166), S( 48,169), S( 58,171) },
     { S(-39,-36), S(-21,-15), S(  3,  8), S(  3, 18), S( 14, 34), S( 22, 54), // Queens
       S( 28, 61), S( 41, 73), S( 43, 79), S( 48, 92), S( 56, 94), S( 60,104),
       S( 60,113), S( 66,120), S( 67,123), S( 70,126), S( 71,133), S( 73,136),
@@ -411,7 +411,6 @@ namespace {
 #endif
 
 #ifdef LOSERS
-  const Score PieceCountLosers    = S(122, 119);
   const Score ThreatsLosers[]     = { S(216, 279), S(441, 341) };
   const Score AttacksLosers[2][2][PIECE_TYPE_NB] = {
     {
@@ -445,14 +444,8 @@ namespace {
     S(-20,-12), S( 1, -8), S( 2, 10), S(  9, 10)
   };
 
-  // Protector[PieceType-2][distance] contains a protecting bonus for our king,
-  // indexed by piece type and distance between the piece and the king.
-  const Score Protector[][8] = {
-    { S(0, 0), S( 7, 9), S( 7, 1), S( 1, 5), S(-10,-4), S( -1,-4), S( -7,-3), S(-16,-10) }, // Knight
-    { S(0, 0), S(11, 8), S(-7,-1), S(-1,-2), S( -1,-7), S(-11,-3), S( -9,-1), S(-16, -1) }, // Bishop
-    { S(0, 0), S(10, 0), S(-2, 2), S(-5, 4), S( -6, 2), S(-14,-3), S( -2,-9), S(-12, -7) }, // Rook
-    { S(0, 0), S( 3,-5), S( 2,-5), S(-4, 0), S( -9,-6), S( -4, 7), S(-13,-7), S(-10, -7) }  // Queen
-  };
+  // KingProtector[PieceType-2] contains a bonus according to distance from king
+  const Score KingProtector[] = { S(-3, -5), S(-4, -3), S(-3, 0), S(-1, 1) };
 
   // Assorted bonuses and penalties used by evaluation
   const Score MinorBehindPawn     = S( 16,  0);
@@ -535,45 +528,46 @@ namespace {
     { 0, 0, 78, 56, 45, 11 },
 #endif
 #ifdef THREECHECK
-    { 0, 0, 78, 56, 45, 11 },
+    { 0, 0, 105, 66, 62, 33 },
 #endif
   };
 
-  const int KingSafetyParams[VARIANT_NB][8] = {
-    {   820,  103,  190,  142, -810, -306,   -5,    0 },
+  // Per-variant king danger malus factors
+  const int KingDangerParams[VARIANT_NB][7] = {
+    {   102,  201,  143, -848,   -9,   40,    0 },
 #ifdef ANTI
-    {   807,  101,  235,  134, -717, -357,   -5,    0 },
+    {   101,  235,  134, -717,  -11,   -5,    0 },
 #endif
 #ifdef ATOMIC
-    {   805,  305,  170,  141, -718, -367,   -7,   29 },
+    {   305,  170,  141, -718,  -12,   -7,   29 },
 #endif
 #ifdef CRAZYHOUSE
-    {   823,  148,  299,  183, -697, -309,   -1,  263 },
+    {   148,  299,  183, -697,  -10,   -1,  263 },
 #endif
 #ifdef HORDE
-    {   807,  101,  235,  134, -717, -357,   -5,    0 },
+    {   101,  235,  134, -717,  -11,   -5,    0 },
 #endif
 #ifdef KOTH
-    {   807,  101,  235,  134, -717, -357,   -5,    0 },
+    {   101,  235,  134, -717,  -11,   -5,    0 },
 #endif
 #ifdef LOSERS
-    {   807,  101,  235,  134, -717, -357,   -5,    0 },
+    {   101,  235,  134, -717, -357,   -5,    0 },
 #endif
 #ifdef RACE
-    {   807,  101,  235,  134, -717, -357,   -5,    0 },
+    {   101,  235,  134, -717,  -11,   -5,    0 },
 #endif
 #ifdef RELAY
-    {   807,  101,  235,  134, -717, -357,   -5,    0 },
+    {   101,  235,  134, -717,  -11,   -5,    0 },
 #endif
 #ifdef THREECHECK
-    {   880,   77,  138,  107, -726, -292,  -73,  168 },
+    {    77,  138,  107, -726,   -7,  -73,  168 },
 #endif
   };
 
   // Penalties for enemy's safe checks
-  const int QueenCheck  = 810;
-  const int RookCheck   = 888;
-  const int BishopCheck = 400;
+  const int QueenCheck  = 780;
+  const int RookCheck   = 880;
+  const int BishopCheck = 435;
   const int KnightCheck = 790;
 #ifdef ATOMIC
   const int IndirectKingAttack = 1000;
@@ -633,13 +627,16 @@ namespace {
 #ifdef ANTI
         !pos.is_anti() &&
 #endif
-        (pos.non_pawn_material(Them) >= QueenValueMg))
+        (pos.non_pawn_material(Them) >= RookValueMg + KnightValueMg))
 #ifdef CRAZYHOUSE
         || pos.is_house()
 #endif
     )
     {
-        ei.kingRing[Us] = b | shift<Up>(b);
+        ei.kingRing[Us] = b;
+        if (relative_rank(Us, pos.square<KING>(Us)) == RANK_1)
+            ei.kingRing[Us] |= shift<Up>(b);
+
         ei.kingAttackersCount[Them] = popcount(b & ei.pe->pawn_attacks(Them));
         ei.kingAdjacentZoneAttacksCount[Them] = ei.kingAttackersWeight[Them] = 0;
     }
@@ -688,7 +685,7 @@ namespace {
 
         int mob = popcount(b & ei.mobilityArea[Us]);
 
-        mobility[Us] += MobilityBonus[pos.variant()][Pt-2][mob];
+        mobility[Us] += MobilityBonus[pos.variant()][Pt - 2][mob];
 
 #ifdef ANTI
         if (pos.is_anti())
@@ -698,7 +695,7 @@ namespace {
         if (pos.is_horde() && pos.is_horde_color(Us)) {} else
 #endif
         // Bonus for this piece as a king protector
-        score += Protector[Pt-2][distance(s, pos.square<KING>(Us))];
+        score += KingProtector[Pt - 2] * distance(s, pos.square<KING>(Us));
 
         if (Pt == BISHOP || Pt == KNIGHT)
         {
@@ -806,7 +803,12 @@ namespace {
     Score score = ei.pe->king_safety<Us>(pos, ksq);
 
     // Main king safety evaluation
-    if (ei.kingAttackersCount[Them])
+    if (ei.kingAttackersCount[Them] > (1 - pos.count<QUEEN>(Them))
+#ifdef HORDE
+        // Hack to prevent segmentation fault for multi-queen positions
+        && !(pos.is_horde() && ksq == SQ_NONE)
+#endif
+    )
     {
         // Find the attacked squares which are defended only by our king...
 #ifdef ATOMIC
@@ -829,21 +831,26 @@ namespace {
         // number and types of the enemy's attacking pieces, the number of
         // attacked and undefended squares around our king and the quality of
         // the pawn shelter (current 'score' value).
-        const auto KSP = KingSafetyParams[pos.variant()];
-        kingDanger =  std::min(KSP[0], ei.kingAttackersCount[Them] * ei.kingAttackersWeight[Them])
-                    + KSP[1] * ei.kingAdjacentZoneAttacksCount[Them]
-                    + KSP[2] * popcount(undefended)
-                    + KSP[3] * (popcount(b) + !!pos.pinned_pieces(Us))
-                    + KSP[4] * !pos.count<QUEEN>(Them)
-                    + KSP[5] * mg_value(score) / 255 + KSP[6];
+        const auto KDP = KingDangerParams[pos.variant()];
+        kingDanger =           ei.kingAttackersCount[Them] * ei.kingAttackersWeight[Them]
+                    + KDP[0] * ei.kingAdjacentZoneAttacksCount[Them]
+                    + KDP[1] * popcount(undefended)
+                    + KDP[2] * (popcount(b) + !!pos.pinned_pieces(Us))
+                    + KDP[3] * !pos.count<QUEEN>(Them)
+                    + KDP[4] * mg_value(score) / 8
+                    + KDP[5];
         Bitboard h = 0;
 
 #ifdef CRAZYHOUSE
         if (pos.is_house())
         {
-            for (PieceType pt = NO_PIECE_TYPE; pt <= QUEEN; ++pt)
-                kingDanger += KingDangerInHand[pt] * pos.count_in_hand(Them, pt);
-            h = pos.count_in_hand(Them, QUEEN) ? undefended & ~pos.pieces() : 0;
+            kingDanger += KingDangerInHand[ALL_PIECES] * pos.count_in_hand<ALL_PIECES>(Them);
+            kingDanger += KingDangerInHand[PAWN] * pos.count_in_hand<PAWN>(Them);
+            kingDanger += KingDangerInHand[KNIGHT] * pos.count_in_hand<KNIGHT>(Them);
+            kingDanger += KingDangerInHand[BISHOP] * pos.count_in_hand<BISHOP>(Them);
+            kingDanger += KingDangerInHand[ROOK] * pos.count_in_hand<ROOK>(Them);
+            kingDanger += KingDangerInHand[QUEEN] * pos.count_in_hand<QUEEN>(Them);
+            h = pos.count_in_hand<QUEEN>(Them) ? undefended & ~pos.pieces() : 0;
         }
 #endif
 
@@ -883,7 +890,7 @@ namespace {
 
         // Enemy rooks safe and other checks
 #ifdef CRAZYHOUSE
-        h = pos.is_house() && pos.count_in_hand(Them, ROOK) ? ~pos.pieces() : 0;
+        h = pos.is_house() && pos.count_in_hand<ROOK>(Them) ? ~pos.pieces() : 0;
 #endif
         if (b1 & ((ei.attackedBy[Them][ROOK] & safe) | (h & dropSafe)))
             kingDanger += RookCheck;
@@ -893,7 +900,7 @@ namespace {
 
         // Enemy bishops safe and other checks
 #ifdef CRAZYHOUSE
-        h = pos.is_house() && pos.count_in_hand(Them, BISHOP) ? ~pos.pieces() : 0;
+        h = pos.is_house() && pos.count_in_hand<BISHOP>(Them) ? ~pos.pieces() : 0;
 #endif
         if (b2 & ((ei.attackedBy[Them][BISHOP] & safe) | (h & dropSafe)))
             kingDanger += BishopCheck;
@@ -903,7 +910,7 @@ namespace {
 
         // Enemy knights safe and other checks
 #ifdef CRAZYHOUSE
-        h = pos.is_house() && pos.count_in_hand(Them, KNIGHT) ? ~pos.pieces() : 0;
+        h = pos.is_house() && pos.count_in_hand<KNIGHT>(Them) ? ~pos.pieces() : 0;
 #endif
         Bitboard k = pos.attacks_from<KNIGHT>(ksq);
         b = k & ei.attackedBy[Them][KNIGHT];
@@ -928,7 +935,11 @@ namespace {
                 kingDanger = ThreeCheckKSFactors[pos.checks_given(Them)] * kingDanger / 256;
 #endif
             int v = kingDanger * kingDanger / 4096;
-            score -= make_score(v, KSP[7] * v / 256);
+#ifdef CRAZYHOUSE
+            if (pos.is_house() && v > QueenValueMg)
+                v = QueenValueMg;
+#endif
+            score -= make_score(v, kingDanger / 16 + KDP[6] * v / 256);
         }
     }
 
@@ -1036,9 +1047,6 @@ namespace {
                 else if (ei.attackedBy[Us][pt] & pos.pieces(Them))
                     score -= AttacksLosers[theyCapture][theyDefended][NO_PIECE_TYPE];
             }
-            // If both colors attack pieces, increase penalty with piece count
-            if (theyCapture)
-                score -= PieceCountLosers * pos.count<ALL_PIECES>(Us);
         }
         // Bonus if we threaten to force captures (ignoring possible discoveries)
         if (!weCapture || theyCapture)
@@ -1212,7 +1220,7 @@ namespace {
     {
         Square s = pop_lsb(&b);
 
-        assert(!(pos.pieces(PAWN) & forward_bb(Us, s)));
+        assert(!(pos.pieces(Them, PAWN) & forward_bb(Us, s + pawn_push(Us))));
 
         bb = forward_bb(Us, s) & (ei.attackedBy[Them][ALL_PIECES] | pos.pieces(Them));
         score -= HinderPassedPawn * popcount(bb);
@@ -1291,8 +1299,8 @@ namespace {
         } // rr != 0
 
         // Scale down bonus for candidate passers which need more than one
-        // pawn push to become passed.
-        if (!pos.pawn_passed(Us, s + pawn_push(Us)))
+        // pawn push to become passed or have a pawn in front of them.
+        if (!pos.pawn_passed(Us, s + pawn_push(Us)) || (pos.pieces(PAWN) & forward_bb(Us, s)))
             mbonus /= 2, ebonus /= 2;
 
         score += make_score(mbonus, ebonus) + PassedFile[file_of(s)];

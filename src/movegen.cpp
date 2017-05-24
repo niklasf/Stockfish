@@ -54,20 +54,28 @@ namespace {
     {
 #endif
     for (Square s = kto; s != kfrom; s += K)
-        if (pos.attackers_to(s) & enemies)
-        {
 #ifdef ATOMIC
-            if (V == ATOMIC_VARIANT && (pos.attacks_from<KING>(pos.square<KING>(~us)) & s))
-                continue;
-#endif
-            return moveList;
+        if (V == ATOMIC_VARIANT)
+        {
+            if (   !(pos.attacks_from<KING>(pos.square<KING>(~us)) & s)
+                &&  (pos.attackers_to(s, pos.pieces() ^ kfrom) & enemies))
+                return moveList;
         }
+        else
+#endif
+        if (pos.attackers_to(s) & enemies)
+            return moveList;
 
     // Because we generate only legal castling moves we need to verify that
     // when moving the castling rook we do not discover some hidden checker.
     // For instance an enemy queen in SQ_A1 when castling rook is in SQ_B1.
     if (Chess960 && (attacks_bb<ROOK>(kto, pos.pieces() ^ rfrom) & pos.pieces(~us, ROOK, QUEEN)))
+    {
+#ifdef ATOMIC
+        if (V == ATOMIC_VARIANT && (pos.attacks_from<KING>(pos.square<KING>(~us)) & kto)) {} else
+#endif
         return moveList;
+    }
 #ifdef ANTI
     }
 #endif
@@ -111,7 +119,7 @@ namespace {
 
     // Knight promotion is the only promotion that can give a direct check
     // that's not already included in the queen promotion.
-    if (Type == QUIET_CHECKS && (StepAttacksBB[W_KNIGHT][to] & ksq))
+    if (Type == QUIET_CHECKS && (PseudoAttacks[KNIGHT][to] & ksq))
         *moveList++ = make<PROMOTION>(to - D, to, KNIGHT);
     else
         (void)ksq; // Silence a warning under MSVC
@@ -122,7 +130,7 @@ namespace {
 #ifdef CRAZYHOUSE
   template<Color Us, PieceType Pt, bool Checks>
   ExtMove* generate_drops(const Position& pos, ExtMove* moveList, Bitboard b) {
-    if (pos.count_in_hand(Us, Pt))
+    if (pos.count_in_hand<Pt>(Us))
     {
         if (Checks)
             b &= pos.check_squares(Pt);
@@ -210,7 +218,7 @@ namespace {
         }
 #ifdef CRAZYHOUSE
         // Do not require drops to be check (unless already required by target)
-        if (V == CRAZYHOUSE_VARIANT && pos.count_in_hand(Us, PAWN))
+        if (V == CRAZYHOUSE_VARIANT && pos.count_in_hand<PAWN>(Us))
         {
             Bitboard b = (Type == EVASIONS ? emptySquares & target : emptySquares) & ~(Rank1BB | Rank8BB);
             moveList = generate_drops<Us, PAWN, false>(pos, moveList, b);
@@ -366,7 +374,7 @@ namespace {
     moveList = generate_pawn_moves<V, Us, Type>(pos, moveList, target);
 #ifdef CRAZYHOUSE
     if (V == CRAZYHOUSE_VARIANT && Type != CAPTURES &&
-        (pos.count_in_hand(Us, ALL_PIECES) - pos.count_in_hand(Us, PAWN)))
+        (pos.count_in_hand<ALL_PIECES>(Us) - pos.count_in_hand<PAWN>(Us)))
     {
         Bitboard b = Type == EVASIONS ? target ^ pos.checkers() :
                      Type == NON_EVASIONS ? target ^ pos.pieces(~Us) : target;
@@ -392,11 +400,7 @@ namespace {
             while (b)
                 *moveList++ = make_move(ksq, pop_lsb(&b));
         }
-#ifdef SUICIDE
-        if (pos.is_suicide() || pos.can_capture())
-#else
         if (pos.can_capture())
-#endif
             return moveList;
     }
     else
@@ -558,7 +562,7 @@ ExtMove* generate<QUIET_CHECKS>(const Position& pos, ExtMove* moveList) {
      if (pt == PAWN)
          continue; // Will be generated together with direct checks
 
-     Bitboard b = pos.attacks_from(Piece(pt), from) & ~pos.pieces();
+     Bitboard b = pos.attacks_from(pt, from) & ~pos.pieces();
 
      if (pt == KING)
          b &= ~PseudoAttacks[QUEEN][pos.square<KING>(~us)];
