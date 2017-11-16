@@ -53,7 +53,7 @@ script:
   #
   # Build snapshot
   #
-  - if [[ "$DEPLOY" == "stockfish" ]]; then make clean && docker build --tag wheezy-for-sf -f ../deploy/wheezy.dockerfile . && docker run --volume "$PWD/..:/home/builder/Stockfish" --user $(id -u) wheezy-for-sf; fi
+  - if [[ "$DEPLOY" == "stockfish" ]]; then make clean && docker build --tag wheezy-for-sf -f ../deploy/wheezy.dockerfile ../deploy && docker run --volume "$PWD/..:/home/builder/Stockfish" --user $(id -u) wheezy-for-sf; fi
   - if [[ "$DEPLOY" == "stockfish-osx" ]]; then make clean && make build ARCH=x86-64 EXE=../stockfish-osx-x86_64; fi
 
 addons:
