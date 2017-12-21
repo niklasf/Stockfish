@@ -45,10 +45,149 @@ Magic BishopMagics[SQUARE_NB];
 
 namespace {
 
-  Bitboard RookTable[0x19000];  // To store rook attacks
-  Bitboard BishopTable[0x1480]; // To store bishop attacks
+  Bitboard AttackTable[HasPext ? 107648 : 87988] = { 0 };
 
-  void init_magics(Bitboard table[], Magic magics[], Direction directions[]);
+  struct MagicInit {
+    Bitboard magic;
+    unsigned offset;
+  };
+
+  MagicInit BishopMagicInit[SQUARE_NB] = {
+    { 0xa7020080601803d8u, 60984 },
+    { 0x13802040400801f1u, 66046 },
+    { 0x0a0080181001f60cu, 32910 },
+    { 0x1840802004238008u, 16369 },
+    { 0xc03fe00100000000u, 42115 },
+    { 0x24c00bffff400000u,   835 },
+    { 0x0808101f40007f04u, 18910 },
+    { 0x100808201ec00080u, 25911 },
+    { 0xffa2feffbfefb7ffu, 63301 },
+    { 0x083e3ee040080801u, 16063 },
+    { 0xc0800080181001f8u, 17481 },
+    { 0x0440007fe0031000u, 59361 },
+    { 0x2010007ffc000000u, 18735 },
+    { 0x1079ffe000ff8000u, 61249 },
+    { 0x3c0708101f400080u, 68938 },
+    { 0x080614080fa00040u, 61791 },
+    { 0x7ffe7fff817fcff9u, 21893 },
+    { 0x7ffebfffa01027fdu, 62068 },
+    { 0x53018080c00f4001u, 19829 },
+    { 0x407e0001000ffb8au, 26091 },
+    { 0x201fe000fff80010u, 15815 },
+    { 0xffdfefffde39ffefu, 16419 },
+    { 0xcc8808000fbf8002u, 59777 },
+    { 0x7ff7fbfff8203fffu, 16288 },
+    { 0x8800013e8300c030u, 33235 },
+    { 0x0420009701806018u, 15459 },
+    { 0x7ffeff7f7f01f7fdu, 15863 },
+    { 0x8700303010c0c006u, 75555 },
+    { 0xc800181810606000u, 79445 },
+    { 0x20002038001c8010u, 15917 },
+    { 0x087ff038000fc001u,  8512 },
+    { 0x00080c0c00083007u, 73069 },
+    { 0x00000080fc82c040u, 16078 },
+    { 0x000000407e416020u, 19168 },
+    { 0x00600203f8008020u, 11056 },
+    { 0xd003fefe04404080u, 62544 },
+    { 0xa00020c018003088u, 80477 },
+    { 0x7fbffe700bffe800u, 75049 },
+    { 0x107ff00fe4000f90u, 32947 },
+    { 0x7f8fffcff1d007f8u, 59172 },
+    { 0x0000004100f88080u, 55845 },
+    { 0x00000020807c4040u, 61806 },
+    { 0x00000041018700c0u, 73601 },
+    { 0x0010000080fc4080u, 15546 },
+    { 0x1000003c80180030u, 45243 },
+    { 0xc10000df80280050u, 20333 },
+    { 0xffffffbfeff80fdcu, 33402 },
+    { 0x000000101003f812u, 25917 },
+    { 0x0800001f40808200u, 32875 },
+    { 0x084000101f3fd208u,  4639 },
+    { 0x080000000f808081u, 17077 },
+    { 0x0004000008003f80u, 62324 },
+    { 0x08000001001fe040u, 18159 },
+    { 0x72dd000040900a00u, 61436 },
+    { 0xfffffeffbfeff81du, 57073 },
+    { 0xcd8000200febf209u, 61025 },
+    { 0x100000101ec10082u, 81259 },
+    { 0x7fbaffffefe0c02fu, 64083 },
+    { 0x7f83fffffff07f7fu, 56114 },
+    { 0xfff1fffffff7ffc1u, 57058 },
+    { 0x0878040000ffe01fu, 58912 },
+    { 0x945e388000801012u, 22194 },
+    { 0x0840800080200fdau, 70880 },
+    { 0x100000c05f582008u, 11140 },
+  };
+
+  MagicInit RookMagicInit[SQUARE_NB] = {
+    { 0x80280013ff84ffffu, 10890 },
+    { 0x5ffbfefdfef67fffu, 50579 },
+    { 0xffeffaffeffdffffu, 62020 },
+    { 0x003000900300008au, 67322 },
+    { 0x0050028010500023u, 80251 },
+    { 0x0020012120a00020u, 58503 },
+    { 0x0030006000c00030u, 51175 },
+    { 0x0058005806b00002u, 83130 },
+    { 0x7fbff7fbfbeafffcu, 50430 },
+    { 0x0000140081050002u, 21613 },
+    { 0x0000180043800048u, 72625 },
+    { 0x7fffe800021fffb8u, 80755 },
+    { 0xffffcffe7fcfffafu, 69753 },
+    { 0x00001800c0180060u, 26973 },
+    { 0x4f8018005fd00018u, 84972 },
+    { 0x0000180030620018u, 31958 },
+    { 0x00300018010c0003u, 69272 },
+    { 0x0003000c0085ffffu, 48372 },
+    { 0xfffdfff7fbfefff7u, 65477 },
+    { 0x7fc1ffdffc001fffu, 43972 },
+    { 0xfffeffdffdffdfffu, 57154 },
+    { 0x7c108007befff81fu, 53521 },
+    { 0x20408007bfe00810u, 30534 },
+    { 0x0400800558604100u, 16548 },
+    { 0x0040200010080008u, 46407 },
+    { 0x0010020008040004u, 11841 },
+    { 0xfffdfefff7fbfff7u, 21112 },
+    { 0xfebf7dfff8fefff9u, 44214 },
+    { 0xc00000ffe001ffe0u, 57925 },
+    { 0x4af01f00078007c3u, 29574 },
+    { 0xbffbfafffb683f7fu, 17309 },
+    { 0x0807f67ffa102040u, 40143 },
+    { 0x200008e800300030u, 64659 },
+    { 0x0000008780180018u, 70469 },
+    { 0x0000010300180018u, 62917 },
+    { 0x4000008180180018u, 60997 },
+    { 0x008080310005fffau, 18554 },
+    { 0x4000188100060006u, 14385 },
+    { 0xffffff7fffbfbfffu,     0 },
+    { 0x0000802000200040u, 38091 },
+    { 0x20000202ec002800u, 25122 },
+    { 0xfffff9ff7cfff3ffu, 60083 },
+    { 0x000000404b801800u, 72209 },
+    { 0x2000002fe03fd000u, 67875 },
+    { 0xffffff6ffe7fcffdu, 56290 },
+    { 0xbff7efffbfc00fffu, 43807 },
+    { 0x000000100800a804u, 73365 },
+    { 0x6054000a58005805u, 76398 },
+    { 0x0829000101150028u, 20024 },
+    { 0x00000085008a0014u,  9513 },
+    { 0x8000002b00408028u, 24324 },
+    { 0x4000002040790028u, 22996 },
+    { 0x7800002010288028u, 23213 },
+    { 0x0000001800e08018u, 56002 },
+    { 0xa3a80003f3a40048u, 22809 },
+    { 0x2003d80000500028u, 44545 },
+    { 0xfffff37eefefdfbeu, 36072 },
+    { 0x40000280090013c1u,  4750 },
+    { 0xbf7ffeffbffaf71fu,  6014 },
+    { 0xfffdffff777b7d6eu, 36054 },
+    { 0x48300007e8080c02u, 78538 },
+    { 0xafe0000fff780402u, 28745 },
+    { 0xee73fffbffbb77feu,  8555 },
+    { 0x0002000308482882u,  1009 },
+  };
+
+  Bitboard relevant_occupancies(Direction directions[], Square s);
+  void init_magics(MagicInit init[], Magic magics[], Direction directions[], unsigned shift);
 
   // popcount16() counts the non-zero bits using SWAR-Popcount algorithm
 
@@ -140,8 +279,25 @@ void Bitboards::init() {
   Direction RookDirections[] = { NORTH,  EAST,  SOUTH,  WEST };
   Direction BishopDirections[] = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
 
-  init_magics(RookTable, RookMagics, RookDirections);
-  init_magics(BishopTable, BishopMagics, BishopDirections);
+  if (HasPext)
+  {
+      unsigned offset = 0;
+
+      for (Square s = SQ_A1; s <= SQ_H8; ++s)
+      {
+          RookMagicInit[s].offset = offset;
+          offset += 1 << popcount(relevant_occupancies(RookDirections, s));
+      }
+
+      for (Square s = SQ_A1; s <= SQ_H8; ++s)
+      {
+          BishopMagicInit[s].offset = offset;
+          offset += 1 << popcount(relevant_occupancies(BishopDirections, s));
+      }
+  }
+
+  init_magics(RookMagicInit, RookMagics, RookDirections, 12);
+  init_magics(BishopMagicInit, BishopMagics, BishopDirections, 9);
 
   for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
   {
@@ -181,84 +337,38 @@ namespace {
     return attack;
   }
 
+  Bitboard relevant_occupancies(Direction directions[], Square s) {
+
+    Bitboard edges = ((Rank1BB | Rank8BB) & ~rank_bb(s)) | ((FileABB | FileHBB) & ~file_bb(s));
+    return sliding_attack(directions, s, 0) & ~edges;
+  }
 
   // init_magics() computes all rook and bishop attacks at startup. Magic
   // bitboards are used to look up attacks of sliding pieces. As a reference see
-  // chessprogramming.wikispaces.com/Magic+Bitboards. In particular, here we
-  // use the so called "fancy" approach.
+  // chessprogramming.wikispaces.com/Magic+Bitboards. In particular, we use
+  // precomputed fixed shift magics.
 
-  void init_magics(Bitboard table[], Magic magics[], Direction directions[]) {
-
-    // Optimal PRNG seeds to pick the correct magics in the shortest time
-    int seeds[][RANK_NB] = { { 8977, 44560, 54343, 38998,  5731, 95205, 104912, 17020 },
-                             {  728, 10316, 55013, 32803, 12281, 15100,  16645,   255 } };
-
-    Bitboard occupancy[4096], reference[4096], edges, b;
-    int epoch[4096] = {}, cnt = 0, size = 0;
+  void init_magics(MagicInit init[], Magic magics[], Direction directions[], unsigned shift) {
 
     for (Square s = SQ_A1; s <= SQ_H8; ++s)
     {
-        // Board edges are not considered in the relevant occupancies
-        edges = ((Rank1BB | Rank8BB) & ~rank_bb(s)) | ((FileABB | FileHBB) & ~file_bb(s));
-
-        // Given a square 's', the mask is the bitboard of sliding attacks from
-        // 's' computed on an empty board. The index must be big enough to contain
-        // all the attacks for each possible subset of the mask and so is 2 power
-        // the number of 1s of the mask. Hence we deduce the size of the shift to
-        // apply to the 64 or 32 bits word to get the index.
         Magic& m = magics[s];
-        m.mask  = sliding_attack(directions, s, 0) & ~edges;
-        m.shift = (Is64Bit ? 64 : 32) - popcount(m.mask);
 
-        // Set the offset for the attacks table of the square. We have individual
-        // table sizes for each square with "Fancy Magic Bitboards".
-        m.attacks = s == SQ_A1 ? table : magics[s - 1].attacks + size;
+        Bitboard relevant = relevant_occupancies(directions, s);
 
-        // Use Carry-Rippler trick to enumerate all subsets of masks[s] and
-        // store the corresponding sliding attack bitboard in reference[].
-        b = size = 0;
+        m.magic = init[s].magic;
+        m.mask = HasPext ? relevant : ~relevant;
+        m.attacks = AttackTable + init[s].offset;
+
+        Bitboard b = 0;
         do {
-            occupancy[size] = b;
-            reference[size] = sliding_attack(directions, s, b);
-
-            if (HasPext)
-                m.attacks[pext(b, m.mask)] = reference[size];
-
-            size++;
-            b = (b - m.mask) & m.mask;
+            unsigned idx = HasPext ? pext(b, m.mask) : ((b | m.mask) * m.magic) >> (64 - shift);
+            Bitboard attack = sliding_attack(directions, s, b);
+            assert(!m.attacks[idx] || m.attacks[idx] == attack);
+            m.attacks[idx] = attack;
+            b = (b - relevant) & relevant;
         } while (b);
-
-        if (HasPext)
-            continue;
-
-        PRNG rng(seeds[Is64Bit][rank_of(s)]);
-
-        // Find a magic for square 's' picking up an (almost) random number
-        // until we find the one that passes the verification test.
-        for (int i = 0; i < size; )
-        {
-            for (m.magic = 0; popcount((m.magic * m.mask) >> 56) < 6; )
-                m.magic = rng.sparse_rand<Bitboard>();
-
-            // A good magic must map every possible occupancy to an index that
-            // looks up the correct sliding attack in the attacks[s] database.
-            // Note that we build up the database for square 's' as a side
-            // effect of verifying the magic. Keep track of the attempt count
-            // and save it in epoch[], little speed-up trick to avoid resetting
-            // m.attacks[] after every failed attempt.
-            for (++cnt, i = 0; i < size; ++i)
-            {
-                unsigned idx = m.index(occupancy[i]);
-
-                if (epoch[idx] < cnt)
-                {
-                    epoch[idx] = cnt;
-                    m.attacks[idx] = reference[i];
-                }
-                else if (m.attacks[idx] != reference[i])
-                    break;
-            }
-        }
     }
   }
+
 }
