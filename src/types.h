@@ -86,7 +86,7 @@ constexpr bool HasPopCnt = false;
 #endif
 
 #ifdef USE_PEXT
-constexpr bool HasPext = true;
+constexpr bool HasPext = false; // Disabled
 #else
 constexpr bool HasPext = false;
 #endif
