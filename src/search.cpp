@@ -105,7 +105,7 @@ namespace {
   {0, 603, 604},
 #endif
   };
-  const int FutilityMarginFactor[VARIANT_NB] = {
+  constexpr int FutilityMarginFactor[VARIANT_NB] = {
   175,
 #ifdef ANTI
   611,
@@ -141,7 +141,7 @@ namespace {
   175,
 #endif
   };
-  const int FutilityMarginParent[VARIANT_NB][2] = {
+  constexpr int FutilityMarginParent[VARIANT_NB][2] = {
   { 256, 200 },
 #ifdef ANTI
   { 331, 372 },
@@ -177,7 +177,7 @@ namespace {
   { 256, 200 },
 #endif
   };
-  const int ProbcutMargin[VARIANT_NB] = {
+  constexpr int ProbcutMargin[VARIANT_NB] = {
   216,
 #ifdef ANTI
   200,
@@ -238,10 +238,9 @@ namespace {
   // History and stats update bonus, based on depth
   int stat_bonus(Depth depth) {
     int d = depth / ONE_PLY;
-    return d > 17 ? 0 : d * d + 2 * d - 2;
+    return d > 17 ? 0 : 32 * d * d + 64 * d - 64;
   }
 
-#ifdef SKILL
   // Skill structure is used to implement strength limit
   struct Skill {
     explicit Skill(int l) : level(l) {}
@@ -252,7 +251,6 @@ namespace {
     int level;
     Move best = MOVE_NONE;
   };
-#endif
 
   template <NodeType NT>
   Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode, bool skipEarlyPruning);
@@ -435,9 +433,7 @@ void MainThread::search() {
 #endif
   if (    Options["MultiPV"] == 1
       && !Limits.depth
-#ifdef SKILL
       && !Skill(Options["Skill Level"]).enabled()
-#endif
       &&  rootMoves[0].pv[0] != MOVE_NONE)
   {
       for (Thread* th : Threads)
@@ -544,18 +540,16 @@ void Thread::search() {
       mainThread->bestMoveChanges = 0, mainThread->failedLow = false;
 
   size_t multiPV = Options["MultiPV"];
-#ifdef SKILL
   Skill skill(Options["Skill Level"]);
 
   // When playing with strength handicap enable MultiPV search that we will
   // use behind the scenes to retrieve a set of possible moves.
   if (skill.enabled())
       multiPV = std::max(multiPV, (size_t)4);
-#endif
 
   multiPV = std::min(multiPV, rootMoves.size());
 
-  int ct = Options["Contempt"] * PawnValueEg / 100; // From centipawns
+  int ct = int(Options["Contempt"]) * PawnValueEg / 100; // From centipawns
 
   // In analysis mode, adjust contempt in accordance with user preference
   if (Limits.infinite || Options["UCI_AnalyseMode"])
@@ -617,7 +611,7 @@ void Thread::search() {
               beta  = std::min(previousScore + delta, VALUE_INFINITE);
 
               // Adjust contempt based on root move's previousScore (dynamic contempt)
-              int dct = ct + int(std::round(48 * atan(float(previousScore) / 128)));
+              int dct = ct + 88 * previousScore / (abs(previousScore) + 200);
 
               contempt = (us == WHITE ?  make_score(dct, dct / 2)
                                       : -make_score(dct, dct / 2));
@@ -700,11 +694,9 @@ void Thread::search() {
       if (!mainThread)
           continue;
 
-#ifdef SKILL
       // If skill level is enabled and time is up, pick a sub-optimal best move
       if (skill.enabled() && skill.time_to_pick(rootDepth))
           skill.pick_best(multiPV);
-#endif
 
       // Do we have time for the next iteration? Can we stop searching now?
       if (    Limits.use_time_management()
@@ -745,12 +737,10 @@ void Thread::search() {
 
   mainThread->previousTimeReduction = timeReduction;
 
-#ifdef SKILL
   // If skill level is enabled, swap best PV line with the sub-optimal one
   if (skill.enabled())
       std::swap(rootMoves[0], *std::find(rootMoves.begin(), rootMoves.end(),
                 skill.best ? skill.best : skill.pick_best(multiPV)));
-#endif
 }
 
 
@@ -1125,12 +1115,11 @@ namespace {
 
     // Step 11. Internal iterative deepening (skipped when in check, ~2 Elo)
 #ifdef CRAZYHOUSE
-    if (    depth >= (pos.is_house() ? 4 : 6) * ONE_PLY
+    if (    depth >= (pos.is_house() ? 6 : 8) * ONE_PLY
 #else
-    if (    depth >= 6 * ONE_PLY
+    if (    depth >= 8 * ONE_PLY
 #endif
-        && !ttMove
-        && (PvNode || ss->staticEval + 128 >= beta))
+        && !ttMove)
     {
         Depth d = 3 * depth / 4 - 2 * ONE_PLY;
         search<NT>(pos, ss, alpha, beta, d, cutNode, true);
@@ -1145,7 +1134,11 @@ moves_loop: // When in check, search starts from here
     const PieceToHistory* contHist[] = { (ss-1)->contHistory, (ss-2)->contHistory, nullptr, (ss-4)->contHistory };
     Move countermove = thisThread->counterMoves[pos.piece_on(prevSq)][prevSq];
 
-    MovePicker mp(pos, ttMove, depth, &thisThread->mainHistory, &thisThread->captureHistory, contHist, countermove, ss->killers);
+    MovePicker mp(pos, ttMove, depth, &thisThread->mainHistory,
+                                      &thisThread->captureHistory,
+                                      contHist,
+                                      countermove,
+                                      ss->killers);
     value = bestValue; // Workaround a bogus 'uninitialized' warning under gcc
 
     skipQuiets = false;
@@ -1269,6 +1262,9 @@ moves_loop: // When in check, search starts from here
               // Futility pruning: parent node (~2 Elo)
 #ifdef LOSERS
               if (pos.is_losers()) {} else
+#endif
+#ifdef RACE
+              if (pos.is_race()) {} else
 #endif
               if (   lmrDepth < 7
                   && !inCheck
@@ -1630,7 +1626,9 @@ moves_loop: // When in check, search starts from here
     // to search the moves. Because the depth is <= 0 here, only captures,
     // queen promotions and checks (only if depth >= DEPTH_QS_CHECKS) will
     // be generated.
-    MovePicker mp(pos, ttMove, depth, &pos.this_thread()->mainHistory, &pos.this_thread()->captureHistory, to_sq((ss-1)->currentMove));
+    MovePicker mp(pos, ttMove, depth, &pos.this_thread()->mainHistory,
+                                      &pos.this_thread()->captureHistory,
+                                      to_sq((ss-1)->currentMove));
 
     // Loop through the moves until no moves remain or a beta cutoff occurs
     while ((move = mp.next_move()) != MOVE_NONE)
@@ -1847,7 +1845,6 @@ moves_loop: // When in check, search starts from here
     }
   }
 
-#ifdef SKILL
   // When playing with strength handicap, choose best move among a set of RootMoves
   // using a statistical rule dependent on 'level'. Idea by Heinz van Saanen.
 
@@ -1880,7 +1877,6 @@ moves_loop: // When in check, search starts from here
 
     return best;
   }
-#endif
 
 } // namespace
 
@@ -2007,9 +2003,9 @@ bool RootMove::extract_ponder_from_tt(Position& pos) {
 void Tablebases::rank_root_moves(Position& pos, Search::RootMoves& rootMoves) {
 
     RootInTB = false;
-    UseRule50 = Options["Syzygy50MoveRule"];
-    ProbeDepth = Options["SyzygyProbeDepth"] * ONE_PLY;
-    Cardinality = Options["SyzygyProbeLimit"];
+    UseRule50 = bool(Options["Syzygy50MoveRule"]);
+    ProbeDepth = int(Options["SyzygyProbeDepth"]) * ONE_PLY;
+    Cardinality = int(Options["SyzygyProbeLimit"]);
     bool dtz_available = true;
 
     // Tables with fewer pieces than SyzygyProbeLimit are searched with
