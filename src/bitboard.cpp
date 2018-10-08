@@ -45,10 +45,10 @@ Magic BishopMagics[SQUARE_NB];
 
 namespace {
 
-  Bitboard RookTable[0x19000];  // To store rook attacks
-  Bitboard BishopTable[0x1480]; // To store bishop attacks
+  Bitboard RookTable[0x19000] = {};  // To store rook attacks
+  Bitboard BishopTable[0x1480] = {}; // To store bishop attacks
 
-  void init_magics(Bitboard table[], Magic magics[], Direction directions[]);
+  void init_magics(Bitboard table[], unsigned int offsets[], Magic magics[], Direction directions[]);
 
   // popcount16() counts the non-zero bits using SWAR-Popcount algorithm
 
@@ -140,8 +140,30 @@ void Bitboards::init() {
   Direction RookDirections[] = { NORTH, EAST, SOUTH, WEST };
   Direction BishopDirections[] = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
 
-  init_magics(RookTable, RookMagics, RookDirections);
-  init_magics(BishopTable, BishopMagics, BishopDirections);
+  unsigned int RookOffsets[] = {
+       8192, 34816, 36864, 38912, 40960, 43008, 45056, 12288,
+      34816,  8192, 38912, 36864, 43008, 40960, 12288, 45056,
+      32768, 30720,     0,  5120,  6144, 1024,  49152, 47104,
+      30720, 28672,  5120,     0,  1024, 6144,  47104, 49152,
+      28672, 26624,  4096,  3072,  2048, 7168,  53248, 51200,
+      26624, 24576,  3072,  4096,  7168, 2048,  51200, 53248,
+      24576, 20480, 61440, 63488, 57344, 59392, 16384, 55296,
+      20480, 65536, 63488, 61440, 59392, 57344, 55296, 16384,
+  };
+
+  unsigned int BishopOffsets[] = {
+      1728, 1472, 1632, 1632, 1632, 1632, 1568, 1344,
+      1728, 1472, 1600, 1600, 1600, 1600, 1568, 1344,
+      1728, 1472, 1152, 1152, 1152, 1152, 1568, 1344,
+      1728, 1472,    0,    0,    0,    0, 1568, 1344,
+      1280, 1504,  512,  512,  512,  512, 1536, 1408,
+      1280, 1504, 1024, 1024, 1024, 1024, 1536, 1408,
+      1280, 1504, 1664, 1664, 1664, 1664, 1536, 1408,
+      1280, 1504, 1696, 1696, 1696, 1696, 1536, 1408,
+  };
+
+  init_magics(RookTable, RookOffsets, RookMagics, RookDirections);
+  init_magics(BishopTable, BishopOffsets, BishopMagics, BishopDirections);
 
   for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
   {
@@ -187,13 +209,13 @@ namespace {
   // chessprogramming.wikispaces.com/Magic+Bitboards. In particular, here we
   // use the so called "fancy" approach.
 
-  void init_magics(Bitboard table[], Magic magics[], Direction directions[]) {
+  void init_magics(Bitboard table[], unsigned int offsets[], Magic magics[], Direction directions[]) {
 
     // Optimal PRNG seeds to pick the correct magics in the shortest time
     int seeds[][RANK_NB] = { { 8977, 44560, 54343, 38998,  5731, 95205, 104912, 17020 },
                              {  728, 10316, 55013, 32803, 12281, 15100,  16645,   255 } };
 
-    Bitboard occupancy[4096], reference[4096], edges, b;
+    Bitboard occupancy[4096], reference[4096], scratch[4096], edges, b;
     int epoch[4096] = {}, cnt = 0, size = 0;
 
     for (Square s = SQ_A1; s <= SQ_H8; ++s)
@@ -207,12 +229,13 @@ namespace {
         // the number of 1s of the mask. Hence we deduce the size of the shift to
         // apply to the 64 or 32 bits word to get the index.
         Magic& m = magics[s];
-        m.mask  = sliding_attack(directions, s, 0) & ~edges;
-        m.shift = (Is64Bit ? 64 : 32) - popcount(m.mask);
+        m.post  = sliding_attack(directions, s, 0);
+        m.pre   = m.post & ~edges;
+        m.shift = (Is64Bit ? 64 : 32) - popcount(m.pre);
 
         // Set the offset for the attacks table of the square. We have individual
         // table sizes for each square with "Fancy Magic Bitboards".
-        m.attacks = s == SQ_A1 ? table : magics[s - 1].attacks + size;
+        m.attacks = table + offsets[s];
 
         // Use Carry-Rippler trick to enumerate all subsets of masks[s] and
         // store the corresponding sliding attack bitboard in reference[].
@@ -220,45 +243,43 @@ namespace {
         do {
             occupancy[size] = b;
             reference[size] = sliding_attack(directions, s, b);
-
-            if (HasPext)
-                m.attacks[pext(b, m.mask)] = reference[size];
-
             size++;
-            b = (b - m.mask) & m.mask;
+            b = (b - m.pre) & m.pre;
         } while (b);
 
-        if (HasPext)
-            continue;
+        if (!HasPext) {
+            PRNG rng(seeds[Is64Bit][rank_of(s)]);
 
-        PRNG rng(seeds[Is64Bit][rank_of(s)]);
-
-        // Find a magic for square 's' picking up an (almost) random number
-        // until we find the one that passes the verification test.
-        for (int i = 0; i < size; )
-        {
-            for (m.magic = 0; popcount((m.magic * m.mask) >> 56) < 6; )
-                m.magic = rng.sparse_rand<Bitboard>();
-
-            // A good magic must map every possible occupancy to an index that
-            // looks up the correct sliding attack in the attacks[s] database.
-            // Note that we build up the database for square 's' as a side
-            // effect of verifying the magic. Keep track of the attempt count
-            // and save it in epoch[], little speed-up trick to avoid resetting
-            // m.attacks[] after every failed attempt.
-            for (++cnt, i = 0; i < size; ++i)
+            // Find a magic for square 's' picking up an (almost) random number
+            // until we find the one that passes the verification test.
+            for (int i = 0; i < size; )
             {
-                unsigned idx = m.index(occupancy[i]);
+                for (m.magic = 0; popcount((m.magic * m.pre) >> 56) < 6; )
+                    m.magic = rng.sparse_rand<Bitboard>();
 
-                if (epoch[idx] < cnt)
+                // A good magic must map every possible occupancy to an index that
+                // looks up the correct sliding attack in the attacks[s] database.
+                // Note that we build up the database for square 's' as a side
+                // effect of verifying the magic. Keep track of the attempt count
+                // and save it in epoch[], little speed-up trick to avoid resetting
+                // m.attacks[] after every failed attempt.
+                for (++cnt, i = 0; i < size; ++i)
                 {
-                    epoch[idx] = cnt;
-                    m.attacks[idx] = reference[i];
+                    unsigned idx = m.index(occupancy[i]);
+
+                    if (epoch[idx] < cnt)
+                    {
+                        epoch[idx] = cnt;
+                        scratch[idx] = reference[i];
+                    }
+                    else if (scratch[idx] != reference[i])
+                        break;
                 }
-                else if (m.attacks[idx] != reference[i])
-                    break;
             }
         }
+
+        for (int i = 0; i < size; ++i)
+            m.attacks[m.index(occupancy[i])] |= reference[i];
     }
   }
 }

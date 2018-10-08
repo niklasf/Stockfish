@@ -79,7 +79,8 @@ extern Bitboard PawnAttacks[COLOR_NB][SQUARE_NB];
 
 /// Magic holds all magic bitboards relevant data for a single square
 struct Magic {
-  Bitboard  mask;
+  Bitboard  pre;
+  Bitboard  post;
   Bitboard  magic;
   Bitboard* attacks;
   unsigned  shift;
@@ -88,13 +89,13 @@ struct Magic {
   unsigned index(Bitboard occupied) const {
 
     if (HasPext)
-        return unsigned(pext(occupied, mask));
+        return unsigned(pext(occupied, pre));
 
     if (Is64Bit)
-        return unsigned(((occupied & mask) * magic) >> shift);
+        return unsigned(((occupied & pre) * magic) >> shift);
 
-    unsigned lo = unsigned(occupied) & unsigned(mask);
-    unsigned hi = unsigned(occupied >> 32) & unsigned(mask >> 32);
+    unsigned lo = unsigned(occupied) & unsigned(pre);
+    unsigned hi = unsigned(occupied >> 32) & unsigned(pre >> 32);
     return (lo * unsigned(magic) ^ hi * unsigned(magic >> 32)) >> shift;
   }
 };
@@ -258,7 +259,7 @@ template<PieceType Pt>
 inline Bitboard attacks_bb(Square s, Bitboard occupied) {
 
   const Magic& m = Pt == ROOK ? RookMagics[s] : BishopMagics[s];
-  return m.attacks[m.index(occupied)];
+  return m.attacks[m.index(occupied)] & m.post;
 }
 
 inline Bitboard attacks_bb(PieceType pt, Square s, Bitboard occupied) {
