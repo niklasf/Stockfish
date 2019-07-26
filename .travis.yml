@@ -21,8 +21,8 @@ before_install:
 
 script: |
   if [ "$BASEEXE" != "stockfish-osx" ]; then
-    docker build --tag wheezy-for-stockfish .
-    docker run --volume $PWD:/home/builder/Stockfish --user $(id -u) wheezy-for-stockfish
+    docker build --tag jessie-for-stockfish .
+    docker run --volume $PWD:/home/builder/Stockfish --user $(id -u) jessie-for-stockfish
   else
     cd src
     make build ARCH=x86-64 EXE=../$BASEEXE-x86_64
