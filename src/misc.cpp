@@ -148,7 +148,7 @@ const string engine_info(bool to_uci) {
 
 
 /// Debug functions used mainly to collect run-time statistics
-static int64_t hits[2], means[2];
+static std::atomic<int64_t> hits[2], means[2];
 
 void dbg_hit_on(bool b) { ++hits[0]; if (b) ++hits[1]; }
 void dbg_hit_on(bool c, bool b) { if (c) dbg_hit_on(b); }
@@ -213,12 +213,6 @@ void prefetch(void* addr) {
 
 #endif
 
-void prefetch2(void* addr) {
-
-  prefetch(addr);
-  prefetch((uint8_t*)addr + 64);
-}
-
 namespace WinProcGroup {
 
 #ifndef _WIN32
@@ -260,7 +254,7 @@ int best_group(size_t idx) {
       return -1;
   }
 
-  while (ptr->Size > 0 && byteOffset + ptr->Size <= returnLength)
+  while (byteOffset < returnLength)
   {
       if (ptr->Relationship == RelationNumaNode)
           nodes++;
@@ -271,6 +265,7 @@ int best_group(size_t idx) {
           threads += (ptr->Processor.Flags == LTP_PC_SMT) ? 2 : 1;
       }
 
+      assert(ptr->Size);
       byteOffset += ptr->Size;
       ptr = (SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*)(((char*)ptr) + ptr->Size);
   }

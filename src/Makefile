@@ -136,6 +136,8 @@ endif
 ifeq ($(ARCH),ppc-64)
 	arch = ppc64
 	bits = 64
+	popcnt = yes
+	prefetch = yes
 endif
 
 
@@ -349,7 +351,9 @@ endif
 
 ### 3.6 popcnt
 ifeq ($(popcnt),yes)
-	ifeq ($(comp),icc)
+	ifeq ($(arch),ppc64)
+		CXXFLAGS += -DUSE_POPCNT
+	else ifeq ($(comp),icc)
 		CXXFLAGS += -msse3 -DUSE_POPCNT
 	else
 		CXXFLAGS += -msse3 -mpopcnt -DUSE_POPCNT
@@ -517,7 +521,7 @@ config-sanity:
 	@echo "Testing config sanity. If this fails, try 'make help' ..."
 	@echo ""
 	@test "$(debug)" = "yes" || test "$(debug)" = "no"
-	@test "$(sanitize)" = "undefined" || test "$(sanitize)" = "thread" || test "$(sanitize)" = "no"
+	@test "$(sanitize)" = "undefined" || test "$(sanitize)" = "thread" || test "$(sanitize)" = "address" || test "$(sanitize)" = "no"
 	@test "$(optimize)" = "yes" || test "$(optimize)" = "no"
 	@test "$(arch)" = "any" || test "$(arch)" = "x86_64" || test "$(arch)" = "i386" || \
 	 test "$(arch)" = "ppc64" || test "$(arch)" = "ppc" || test "$(arch)" = "armv7"

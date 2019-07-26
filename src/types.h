@@ -107,7 +107,7 @@ constexpr int MAX_MOVES = 512;
 #else
 constexpr int MAX_MOVES = 256;
 #endif
-constexpr int MAX_PLY   = 128;
+constexpr int MAX_PLY   = 246;
 
 enum Variant {
   //main variants
@@ -281,7 +281,11 @@ enum CastlingRight {
   WHITE_OOO = WHITE_OO << 1,
   BLACK_OO  = WHITE_OO << 2,
   BLACK_OOO = WHITE_OO << 3,
-  ANY_CASTLING = WHITE_OO | WHITE_OOO | BLACK_OO | BLACK_OOO,
+
+  WHITE_CASTLING = WHITE_OO | WHITE_OOO,
+  BLACK_CASTLING = BLACK_OO | BLACK_OOO,
+  ANY_CASTLING   = WHITE_CASTLING | BLACK_CASTLING,
+
   CASTLING_RIGHT_NB = 16
 };
 
@@ -335,7 +339,7 @@ enum Value : int {
   VALUE_MATE_IN_MAX_PLY  =  VALUE_MATE - 2 * MAX_PLY,
   VALUE_MATED_IN_MAX_PLY = -VALUE_MATE + 2 * MAX_PLY,
 
-  PawnValueMg   = 136,   PawnValueEg   = 208,
+  PawnValueMg   = 128,   PawnValueEg   = 213,
   KnightValueMg = 782,   KnightValueEg = 865,
   BishopValueMg = 830,   BishopValueEg = 918,
   RookValueMg   = 1289,  RookValueEg   = 1378,
@@ -448,8 +452,9 @@ enum Depth : int {
   DEPTH_QS_NO_CHECKS  = -1 * ONE_PLY,
   DEPTH_QS_RECAPTURES = -5 * ONE_PLY,
 
-  DEPTH_NONE = -6 * ONE_PLY,
-  DEPTH_MAX  = MAX_PLY * ONE_PLY
+  DEPTH_NONE   = -6 * ONE_PLY,
+  DEPTH_OFFSET = DEPTH_NONE,
+  DEPTH_MAX    = MAX_PLY * ONE_PLY
 };
 
 static_assert(!(ONE_PLY & (ONE_PLY - 1)), "ONE_PLY is not a power of 2");
@@ -525,7 +530,6 @@ inline T& operator--(T& d) { return d = T(int(d) - 1); }
 
 #define ENABLE_FULL_OPERATORS_ON(T)                                \
 ENABLE_BASE_OPERATORS_ON(T)                                        \
-ENABLE_INCR_OPERATORS_ON(T)                                        \
 constexpr T operator*(int i, T d) { return T(i * int(d)); }        \
 constexpr T operator*(T d, int i) { return T(int(d) * i); }        \
 constexpr T operator/(T d, int i) { return T(int(d) / i); }        \
@@ -533,17 +537,16 @@ constexpr int operator/(T d1, T d2) { return int(d1) / int(d2); }  \
 inline T& operator*=(T& d, int i) { return d = T(int(d) * i); }    \
 inline T& operator/=(T& d, int i) { return d = T(int(d) / i); }
 
-ENABLE_FULL_OPERATORS_ON(Variant)
 ENABLE_FULL_OPERATORS_ON(Value)
-#ifdef THREECHECK
-ENABLE_FULL_OPERATORS_ON(CheckCount)
-#endif
 ENABLE_FULL_OPERATORS_ON(Depth)
 ENABLE_FULL_OPERATORS_ON(Direction)
 
+ENABLE_INCR_OPERATORS_ON(Variant)
+#ifdef THREECHECK
+ENABLE_INCR_OPERATORS_ON(CheckCount)
+#endif
 ENABLE_INCR_OPERATORS_ON(PieceType)
 ENABLE_INCR_OPERATORS_ON(Piece)
-ENABLE_INCR_OPERATORS_ON(Color)
 ENABLE_INCR_OPERATORS_ON(Square)
 ENABLE_INCR_OPERATORS_ON(File)
 ENABLE_INCR_OPERATORS_ON(Rank)
@@ -654,11 +657,6 @@ constexpr Rank relative_rank(Color c, Rank r) {
 
 constexpr Rank relative_rank(Color c, Square s) {
   return relative_rank(c, rank_of(s));
-}
-
-inline bool opposite_colors(Square s1, Square s2) {
-  int s = int(s1) ^ int(s2);
-  return ((s >> 3) ^ s) & 1;
 }
 
 constexpr Direction pawn_push(Color c) {

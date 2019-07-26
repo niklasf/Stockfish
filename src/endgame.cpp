@@ -18,7 +18,6 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <algorithm>
 #include <cassert>
 
 #include "bitboard.h"
@@ -45,14 +44,14 @@ namespace {
   // Table used to drive the king towards a corner square of the
   // right color in KBN vs K endgames.
   constexpr int PushToCorners[SQUARE_NB] = {
-    200, 190, 180, 170, 160, 150, 140, 130,
-    190, 180, 170, 160, 150, 140, 130, 140,
-    180, 170, 155, 140, 140, 125, 140, 150,
-    170, 160, 140, 120, 110, 140, 150, 160,
-    160, 150, 140, 110, 120, 140, 160, 170,
-    150, 140, 125, 140, 140, 155, 170, 180,
-    140, 130, 140, 150, 160, 170, 180, 190,
-    130, 140, 150, 160, 170, 180, 190, 200
+     6400, 6080, 5760, 5440, 5120, 4800, 4480, 4160,
+     6080, 5760, 5440, 5120, 4800, 4480, 4160, 4480,
+     5760, 5440, 4960, 4480, 4480, 4000, 4480, 4800,
+     5440, 5120, 4480, 3840, 3520, 4480, 4800, 5120,
+     5120, 4800, 4480, 3520, 3840, 4480, 5120, 5440,
+     4800, 4480, 4000, 4480, 4480, 4960, 5440, 5760,
+     4480, 4160, 4480, 4800, 5120, 5440, 5760, 6080,
+     4160, 4480, 4800, 5120, 5440, 5760, 6080, 6400
   };
 
   // Tables used to drive a piece towards or away from another piece
@@ -77,13 +76,52 @@ namespace {
     if (file_of(pos.square<PAWN>(strongSide)) >= FILE_E)
         sq = Square(sq ^ 7); // Mirror SQ_H1 -> SQ_A1
 
-    if (strongSide == BLACK)
-        sq = ~sq;
-
-    return sq;
+    return strongSide == WHITE ? sq : ~sq;
   }
 
 } // namespace
+
+
+namespace Endgames {
+
+  std::pair<Map<Value>, Map<ScaleFactor>> maps;
+
+  void init() {
+
+    add<CHESS_VARIANT, KPK>("KPvK");
+    add<CHESS_VARIANT, KNNK>("KNNvK");
+    add<CHESS_VARIANT, KBNK>("KBNvK");
+    add<CHESS_VARIANT, KRKP>("KRvKP");
+    add<CHESS_VARIANT, KRKB>("KRvKB");
+    add<CHESS_VARIANT, KRKN>("KRvKN");
+    add<CHESS_VARIANT, KQKP>("KQvKP");
+    add<CHESS_VARIANT, KQKR>("KQvKR");
+    add<CHESS_VARIANT, KNNKP>("KNNvKP");
+
+    add<CHESS_VARIANT, KNPK>("KNPvK");
+    add<CHESS_VARIANT, KNPKB>("KNPvKB");
+    add<CHESS_VARIANT, KRPKR>("KRPvKR");
+    add<CHESS_VARIANT, KRPKB>("KRPvKB");
+    add<CHESS_VARIANT, KBPKB>("KBPvKB");
+    add<CHESS_VARIANT, KBPKN>("KBPvKN");
+    add<CHESS_VARIANT, KBPPKB>("KBPPvKB");
+    add<CHESS_VARIANT, KRPPKRP>("KRPPvKRP");
+
+#ifdef ANTI
+    add<ANTI_VARIANT, RK>("RvK");
+    add<ANTI_VARIANT, KN>("KvN");
+    add<ANTI_VARIANT, NN>("NvN");
+#endif
+#ifdef ATOMIC
+    add<ATOMIC_VARIANT, KPK>("KPvK");
+    add<ATOMIC_VARIANT, KNK>("KNvK");
+    add<ATOMIC_VARIANT, KBK>("KBvK");
+    add<ATOMIC_VARIANT, KRK>("KRvK");
+    add<ATOMIC_VARIANT, KQK>("KQvK");
+    add<ATOMIC_VARIANT, KNNK>("KNNvK");
+#endif
+  }
+}
 
 
 /// Mate with KX vs K. This function is used to evaluate positions with
@@ -121,7 +159,7 @@ Value Endgame<CHESS_VARIANT, KXK>::operator()(const Position& pos) const {
 
 
 /// Mate with KBN vs K. This is similar to KX vs K, but we have to drive the
-/// defending king towards a corner square of the right color.
+/// defending king towards a corner square that our bishop attacks.
 template<>
 Value Endgame<CHESS_VARIANT, KBNK>::operator()(const Position& pos) const {
 
@@ -133,19 +171,14 @@ Value Endgame<CHESS_VARIANT, KBNK>::operator()(const Position& pos) const {
   Square loserKSq = pos.square<KING>(weakSide);
   Square bishopSq = pos.square<BISHOP>(strongSide);
 
-  // kbnk_mate_table() tries to drive toward corners A1 or H8. If we have a
-  // bishop that cannot reach the above squares, we flip the kings in order
-  // to drive the enemy toward corners A8 or H1.
-  if (opposite_colors(bishopSq, SQ_A1))
-  {
-      winnerKSq = ~winnerKSq;
-      loserKSq  = ~loserKSq;
-  }
+  // If our Bishop does not attack A1/H8, we flip the enemy king square
+  // to drive to opposite corners (A8/H1).
 
   Value result =  VALUE_KNOWN_WIN
                 + PushClose[distance(winnerKSq, loserKSq)]
-                + PushToCorners[loserKSq];
+                + PushToCorners[opposite_colors(bishopSq, SQ_A1) ? ~loserKSq : loserKSq];
 
+  assert(abs(result) < VALUE_MATE_IN_MAX_PLY);
   return strongSide == pos.side_to_move() ? result : -result;
 }
 
@@ -299,6 +332,21 @@ Value Endgame<CHESS_VARIANT, KQKR>::operator()(const Position& pos) const {
 }
 
 
+/// KNN vs KP. Simply push the opposing king to the corner
+template<>
+Value Endgame<CHESS_VARIANT, KNNKP>::operator()(const Position& pos) const {
+
+  assert(verify_material(pos, strongSide, 2 * KnightValueMg, 0));
+  assert(verify_material(pos, weakSide, VALUE_ZERO, 1));
+
+  Value result =  2 * KnightValueEg
+                - PawnValueEg
+                + PushToEdges[pos.square<KING>(weakSide)];
+
+  return strongSide == pos.side_to_move() ? result : -result;
+}
+
+
 /// Some cases of trivial draws
 template<> Value Endgame<CHESS_VARIANT, KNNK>::operator()(const Position&) const { return VALUE_DRAW; }
 
@@ -340,7 +388,7 @@ ScaleFactor Endgame<CHESS_VARIANT, KBPsK>::operator()(const Position& pos) const
       && pos.count<PAWN>(weakSide) >= 1)
   {
       // Get weakSide pawn that is closest to the home rank
-      Square weakPawnSq = backmost_sq(weakSide, pos.pieces(weakSide, PAWN));
+      Square weakPawnSq = frontmost_sq(strongSide, pos.pieces(weakSide, PAWN));
 
       Square strongKingSq = pos.square<KING>(strongSide);
       Square weakKingSq = pos.square<KING>(weakSide);
@@ -645,8 +693,6 @@ ScaleFactor Endgame<CHESS_VARIANT, KBPPKB>::operator()(const Position& pos) cons
   Square ksq = pos.square<KING>(weakSide);
   Square psq1 = pos.squares<PAWN>(strongSide)[0];
   Square psq2 = pos.squares<PAWN>(strongSide)[1];
-  Rank r1 = rank_of(psq1);
-  Rank r2 = rank_of(psq2);
   Square blockSq1, blockSq2;
 
   if (relative_rank(strongSide, psq1) > relative_rank(strongSide, psq2))
@@ -680,7 +726,7 @@ ScaleFactor Endgame<CHESS_VARIANT, KBPPKB>::operator()(const Position& pos) cons
         && opposite_colors(ksq, wbsq)
         && (   bbsq == blockSq2
             || (pos.attacks_from<BISHOP>(blockSq2) & pos.pieces(weakSide, BISHOP))
-            || distance(r1, r2) >= 2))
+            || distance<Rank>(psq1, psq2) >= 2))
         return SCALE_FACTOR_DRAW;
 
     else if (   ksq == blockSq2
@@ -748,6 +794,9 @@ template<>
 ScaleFactor Endgame<CHESS_VARIANT, KNPKB>::operator()(const Position& pos) const {
 
   assert(pos.variant() == CHESS_VARIANT);
+  assert(verify_material(pos, strongSide, KnightValueMg, 1));
+  assert(verify_material(pos, weakSide, BishopValueMg, 0));
+
   Square pawnSq = pos.square<PAWN>(strongSide);
   Square bishopSq = pos.square<BISHOP>(weakSide);
   Square weakKingSq = pos.square<KING>(weakSide);

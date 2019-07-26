@@ -126,14 +126,14 @@ const vector<string> Defaults[SUBVARIANT_NB] = {
 #ifdef ATOMIC
   {
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-    "rnb1k1nr/pppp1ppp/4pq2/2b5/3P4/2P1PN2/PP3PPP/RNBQKB1R b KQkq - 0 1",
-    "rnbqkbnr/pp1pp1pp/2p2p2/8/4P3/2N4N/PPPP1PPP/R1BQKB1R b KQkq - 0 1",
-    "r2qk2r/ppQ1p2p/2p1bn2/2np4/8/2N1PP2/PPPP2PP/R1B1K2R b KQkq - 0 1",
+    "rnb1k1nr/pppp1ppp/4pq2/2b5/3P4/2P1PN2/PP3PPP/RNBQKB1R b KQkq - 0 4",
+    "r2qk2r/ppQ1p2p/2p1bn2/2np4/8/2N1PP2/PPPP2PP/R1B1K2R b KQkq - 2 12",
+    "7r/1p3k1p/4p3/5pp1/3P1P2/1Pn1P3/2P3PP/R5K1 w - - 3 16",
+    "2k2r2/p3p2p/5r2/1p1p1n2/8/3PP3/PPPB2PP/R3KR2 w Q - 5 17",
     "2k5/p6p/8/1p2p3/PP1p4/4P3/2P2rPP/K3R3 b - - 0 1",
     "5r2/p6k/6p1/1p1p2Bp/8/7P/PPP3P1/5R1K w - - 1 1",
     "6k1/1pp3pp/5p2/8/8/2P1P3/5PPP/6K1 w - - 0 1",
-    "8/k7/P7/8/8/6p1/2p3N1/2K5 w - - 0 1",
-    "8/k7/P7/8/8/6p1/2p3N1/2K5 b - - 0 1"
+    "8/k7/P7/8/8/6p1/2p3N1/2K5 w - - 0 1"
   },
 #endif
 #ifdef CRAZYHOUSE
@@ -172,7 +172,8 @@ const vector<string> Defaults[SUBVARIANT_NB] = {
     "rnbqkbnr/pppppppp/8/1PP2PP1/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP w kq - 0 1",
     "pppppppp/pppppppp/pppppppp/pppppppp/1pp2pp1/8/PPPPPPPP/RNBQKBNR w KQ - 0 1",
     "rnb3r1/1p1p1k2/pPpP1P2/P1PPPPP1/1PP1PP2/PPP5/PPPP1P1P/PPP3qP w - - 0 1",
-    "rnb5/1p1p4/pPpPPk2/P1PP1P2/1PP1PP2/PPP5/PPPP3P/PPP4q w - - 0 30"
+    "rn2qk2/1b1p1pbr/3P2n1/pPP1P1Pp/P1PPPP1P/PPPPPPPP/PPP1PPPP/PP4PP w - - 1 22",
+    "2b1k2r/2P1n1p1/1P2P1Pp/2PP3P/3PP1PP/4PPPP/5PPP/1q4P1 b k - 0 34"
   },
 #endif
 #ifdef KOTH
@@ -467,9 +468,9 @@ vector<string> setup_bench(const Position& current, istream& is) {
       file.close();
   }
 
-  list.emplace_back("ucinewgame");
   list.emplace_back("setoption name Threads value " + threads);
   list.emplace_back("setoption name Hash value " + ttSize);
+  list.emplace_back("ucinewgame");
   list.emplace_back("setoption name UCI_Variant value " + variants[variant]);
 
   for (const string& fen : fens)

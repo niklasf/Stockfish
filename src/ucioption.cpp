@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cassert>
 #include <ostream>
+#include <sstream>
 
 #include "misc.h"
 #include "search.h"
@@ -74,6 +75,8 @@ void init(OptionsMap& o) {
   o["UCI_Chess960"]          << Option(false);
   o["UCI_Variant"]           << Option(variants.front().c_str(), variants);
   o["UCI_AnalyseMode"]       << Option(false);
+  o["UCI_LimitStrength"]     << Option(false);
+  o["UCI_Elo"]               << Option(1350, 1350, 2850);
   o["SyzygyPath"]            << Option("<empty>", on_tb_path);
   o["SyzygyProbeDepth"]      << Option(1, 1, 100);
   o["Syzygy50MoveRule"]      << Option(true);
@@ -117,7 +120,7 @@ std::ostream& operator<<(std::ostream& os, const OptionsMap& om) {
 Option::Option(const char* v, OnChange f) : type("string"), min(0), max(0), on_change(f)
 { defaultValue = currentValue = v; }
 
-Option::Option(const char* v, const std::vector<std::string>& variants, OnChange f) : type("combo"), min(0), max(0), comboValues(variants), on_change(f)
+Option::Option(const char* v, const std::vector<std::string>& values, OnChange f) : type("combo"), min(0), max(0), comboValues(values), on_change(f)
 { defaultValue = currentValue = v; }
 
 Option::Option(bool v, OnChange f) : type("check"), min(0), max(0), on_change(f)
@@ -141,8 +144,8 @@ Option::operator std::string() const {
 
 bool Option::operator==(const char* s) const {
   assert(type == "combo");
-  return    !CaseInsensitiveLess()(currentValue, s)
-         && !CaseInsensitiveLess()(s, currentValue);
+  return   !CaseInsensitiveLess()(currentValue, s)
+        && !CaseInsensitiveLess()(s, currentValue);
 }
 
 
@@ -158,8 +161,8 @@ void Option::operator<<(const Option& o) {
 
 
 /// operator=() updates currentValue and triggers on_change() action. It's up to
-/// the GUI to check for option's limits, but we could receive the new value from
-/// the user by console window, so let's check the bounds anyway.
+/// the GUI to check for option's limits, but we could receive the new value
+/// from the user by console window, so let's check the bounds anyway.
 
 Option& Option::operator=(const string& v) {
 
@@ -167,9 +170,21 @@ Option& Option::operator=(const string& v) {
 
   if (   (type != "button" && v.empty())
       || (type == "check" && v != "true" && v != "false")
-      || (type == "combo" && (std::find(comboValues.begin(), comboValues.end(), v) == comboValues.end()))
       || (type == "spin" && (stof(v) < min || stof(v) > max)))
       return *this;
+
+  if (type == "combo")
+  {
+      OptionsMap comboMap; // To have case insensitive compare
+      string token;
+      std::istringstream ss(defaultValue);
+      while (ss >> token)
+          comboMap[token] << Option();
+      for (auto &value : comboValues)
+          comboMap[value] << Option();
+      if (!comboMap.count(v) || v == "var")
+          return *this;
+  }
 
   if (type != "button")
       currentValue = v;

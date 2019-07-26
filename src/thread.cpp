@@ -18,9 +18,9 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <algorithm> // For std::count
 #include <cassert>
 
+#include <algorithm> // For std::count
 #include "movegen.h"
 #include "search.h"
 #include "thread.h"
@@ -39,7 +39,7 @@ ThreadPool Threads; // Global object
 
 
 /// Thread constructor launches the thread and waits until it goes to sleep
-/// in idle_loop(). Note that 'searching' and 'exit' should be alredy set.
+/// in idle_loop(). Note that 'searching' and 'exit' should be already set.
 
 Thread::Thread(size_t n) : idx(n) {
 
@@ -140,7 +140,7 @@ void Thread::idle_loop() {
 }
 
 /// ThreadPool::set() creates/destroys threads to match the requested number.
-/// Created and launched threads will go immediately to sleep in idle_loop.
+/// Created and launched threads will immediately go to sleep in idle_loop.
 /// Upon resizing, threads are recreated to allow for binding if necessary.
 
 void ThreadPool::set(size_t requested) {
@@ -158,10 +158,10 @@ void ThreadPool::set(size_t requested) {
       while (size() < requested)
           push_back(new Thread(size()));
       clear();
-  }
 
-  // Reallocate the hash with the new threadpool size
-  TT.resize(Options["Hash"]);
+      // Reallocate the hash with the new threadpool size
+      TT.resize(Options["Hash"]);
+  }
 }
 
 /// ThreadPool::clear() sets threadPool data to initial values.
@@ -184,8 +184,8 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
 
   main()->wait_for_search_finished();
 
-  stopOnPonderhit = stop = false;
-  ponder = ponderMode;
+  main()->stopOnPonderhit = stop = false;
+  main()->ponder = ponderMode;
   Search::Limits = limits;
   Search::RootMoves rootMoves;
 
@@ -213,7 +213,7 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
 
   for (Thread* th : *this)
   {
-      th->nodes = th->tbHits = th->nmpMinPly = 0;
+      th->shuffleExts = th->nodes = th->tbHits = th->nmpMinPly = 0;
       th->rootDepth = th->completedDepth = DEPTH_ZERO;
       th->rootMoves = rootMoves;
       th->rootPos.set(pos.fen(), pos.is_chess960(), pos.subvariant(), &setupStates->back(), th);

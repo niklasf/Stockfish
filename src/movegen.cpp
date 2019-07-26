@@ -25,87 +25,6 @@
 
 namespace {
 
-  template<Variant V, Color Us, CastlingSide Cs, bool Checks, bool Chess960>
-  ExtMove* generate_castling(const Position& pos, ExtMove* moveList) {
-
-    constexpr CastlingRight Cr = Us | Cs;
-    constexpr bool KingSide = (Cr == WHITE_OO || Cr == BLACK_OO);
-
-    if (pos.castling_impeded(Cr) || !pos.can_castle(Cr))
-        return moveList;
-
-    // After castling, the rook and king final positions are the same in Chess960
-    // as they would be in standard chess.
-    Square kfrom = pos.square<KING>(Us);
-#ifdef ANTI
-    if (V == ANTI_VARIANT)
-        kfrom = pos.castling_king_square(Cr);
-#endif
-#ifdef EXTINCTION
-    if (V == EXTINCTION_VARIANT)
-        kfrom = pos.castling_king_square(Cr);
-#endif
-#ifdef TWOKINGS
-    if (V == TWOKINGS_VARIANT)
-        kfrom = pos.castling_king_square(Cr);
-#endif
-    Square rfrom = pos.castling_rook_square(Cr);
-    Square kto = relative_square(Us, KingSide ? SQ_G1 : SQ_C1);
-    Bitboard enemies = pos.pieces(~Us);
-
-    assert(!pos.checkers());
-
-    const Direction step = Chess960 ? kto > kfrom ? WEST : EAST
-                                    : KingSide    ? WEST : EAST;
-
-#ifdef ANTI
-    if (V != ANTI_VARIANT)
-    {
-#endif
-#ifdef EXTINCTION
-    if (V != EXTINCTION_VARIANT)
-    {
-#endif
-    for (Square s = kto; s != kfrom; s += step)
-#ifdef ATOMIC
-        if (V == ATOMIC_VARIANT)
-        {
-            if (   !(pos.attacks_from<KING>(pos.square<KING>(~Us)) & s)
-                &&  (pos.attackers_to(s, pos.pieces() ^ kfrom) & enemies))
-                return moveList;
-        }
-        else
-#endif
-        if (pos.attackers_to(s) & enemies)
-            return moveList;
-
-    // Because we generate only legal castling moves we need to verify that
-    // when moving the castling rook we do not discover some hidden checker.
-    // For instance an enemy queen in SQ_A1 when castling rook is in SQ_B1.
-    if (Chess960 && (attacks_bb<ROOK>(kto, pos.pieces() ^ rfrom) & pos.pieces(~Us, ROOK, QUEEN)))
-    {
-#ifdef ATOMIC
-        if (V == ATOMIC_VARIANT && (pos.attacks_from<KING>(pos.square<KING>(~Us)) & kto)) {} else
-#endif
-        return moveList;
-    }
-#ifdef EXTINCTION
-    }
-#endif
-#ifdef ANTI
-    }
-#endif
-
-    Move m = make<CASTLING>(kfrom, rfrom);
-
-    if (Checks && !pos.gives_check(m))
-        return moveList;
-
-    *moveList++ = m;
-    return moveList;
-  }
-
-
   template<Variant V, GenType Type, Direction D>
   ExtMove* make_promotions(ExtMove* moveList, Square to, Square ksq) {
 
@@ -200,10 +119,8 @@ namespace {
   template<Variant V, Color Us, GenType Type>
   ExtMove* generate_pawn_moves(const Position& pos, ExtMove* moveList, Bitboard target) {
 
-    // Compute our parametrized parameters at compile time, named according to
-    // the point of view of white side.
+    // Compute some compile time parameters relative to the white side
     constexpr Color     Them     = (Us == WHITE ? BLACK      : WHITE);
-    constexpr Bitboard  TRank8BB = (Us == WHITE ? Rank8BB    : Rank1BB);
     constexpr Bitboard  TRank7BB = (Us == WHITE ? Rank7BB    : Rank2BB);
 #ifdef HORDE
     constexpr Bitboard  TRank2BB = (Us == WHITE ? Rank2BB    : Rank7BB);
@@ -222,7 +139,7 @@ namespace {
                         Type == CAPTURES ? target : pos.pieces(Them));
 #ifdef ATOMIC
     if (V == ATOMIC_VARIANT)
-        enemies &= (Type == CAPTURES || Type == NON_EVASIONS) ? target : ~pos.attacks_from<KING>(pos.square<KING>(Us));
+        enemies &= (Type == CAPTURES || Type == NON_EVASIONS) ? target : ~adjacent_squares_bb(pos.pieces(Us, KING));
 #endif
 
     // Single and double pawn pushes, no promotions
@@ -265,10 +182,10 @@ namespace {
             // if the pawn is not on the same file as the enemy king, because we
             // don't generate captures. Note that a possible discovery check
             // promotion has been already generated amongst the captures.
-            Bitboard dcCandidates = pos.blockers_for_king(Them);
-            if (pawnsNotOn7 & dcCandidates)
+            Bitboard dcCandidateQuiets = pos.blockers_for_king(Them) & pawnsNotOn7;
+            if (dcCandidateQuiets)
             {
-                Bitboard dc1 = shift<Up>(pawnsNotOn7 & dcCandidates) & emptySquares & ~file_bb(ksq);
+                Bitboard dc1 = shift<Up>(dcCandidateQuiets) & emptySquares & ~file_bb(ksq);
                 Bitboard dc2 = shift<Up>(dc1 & TRank3BB) & emptySquares;
 
                 b1 |= dc1;
@@ -290,7 +207,7 @@ namespace {
     }
 
     // Promotions and underpromotions
-    if (pawnsOn7 && (Type != EVASIONS || (target & TRank8BB)))
+    if (pawnsOn7)
     {
         if (Type == CAPTURES)
         {
@@ -412,7 +329,9 @@ namespace {
   template<Variant V, Color Us, GenType Type>
   ExtMove* generate_all(const Position& pos, ExtMove* moveList, Bitboard target) {
 
-    constexpr bool Checks = Type == QUIET_CHECKS;
+    constexpr CastlingRight OO  = Us | KING_SIDE;
+    constexpr CastlingRight OOO = Us | QUEEN_SIDE;
+    constexpr bool Checks = Type == QUIET_CHECKS; // Reduce template instantations
 
 #ifdef PLACEMENT
     if (V == CRAZYHOUSE_VARIANT && pos.is_placement() && pos.count_in_hand<ALL_PIECES>(Us)) {} else
@@ -447,6 +366,10 @@ namespace {
     }
 #endif
 
+#ifdef HORDE
+    if (pos.is_horde() && pos.is_horde_color(Us))
+        return moveList;
+#endif
 #ifdef ANTI
     if (V == ANTI_VARIANT)
     {
@@ -477,9 +400,6 @@ namespace {
     }
     else
 #endif
-#ifdef HORDE
-    if (pos.is_horde() && pos.is_horde_color(Us)) {} else
-#endif
 #ifdef TWOKINGS
     if (V == TWOKINGS_VARIANT && Type != EVASIONS)
     {
@@ -502,30 +422,40 @@ namespace {
         if (V == RACE_VARIANT)
         {
             if (Type == CAPTURES)
-                b |= pos.attacks_from<KING>(ksq) & passed_pawn_mask(WHITE, ksq) & ~pos.pieces();
+                b |= pos.attacks_from<KING>(ksq) & passed_pawn_span(WHITE, ksq) & ~pos.pieces();
             if (Type == QUIETS)
-                b &= ~passed_pawn_mask(WHITE, ksq);
+                b &= ~passed_pawn_span(WHITE, ksq);
         }
 #endif
         while (b)
             *moveList++ = make_move(ksq, pop_lsb(&b));
     }
+    if (Type != QUIET_CHECKS && Type != EVASIONS)
+    {
+        Square ksq = pos.square<KING>(Us);
+#ifdef ANTI
+        if (V == ANTI_VARIANT)
+            ksq = pos.castling_king_square(Us);
+#endif
+#ifdef EXTINCTION
+        if (V == EXTINCTION_VARIANT)
+            ksq = pos.castling_king_square(Us);
+#endif
+#ifdef TWOKINGS
+        if (V == TWOKINGS_VARIANT)
+            ksq = pos.castling_king_square(Us);
+#endif
 
 #ifdef LOSERS
-    if (V == LOSERS_VARIANT && pos.can_capture_losers())
-        return moveList;
+        if (V == LOSERS_VARIANT && pos.can_capture_losers()) {} else
 #endif
-    if (Type != CAPTURES && Type != EVASIONS && pos.can_castle(Us))
-    {
-        if (pos.is_chess960())
+        if (Type != CAPTURES && pos.can_castle(CastlingRight(OO | OOO)))
         {
-            moveList = generate_castling<V, Us, KING_SIDE, Checks, true>(pos, moveList);
-            moveList = generate_castling<V, Us, QUEEN_SIDE, Checks, true>(pos, moveList);
-        }
-        else
-        {
-            moveList = generate_castling<V, Us, KING_SIDE, Checks, false>(pos, moveList);
-            moveList = generate_castling<V, Us, QUEEN_SIDE, Checks, false>(pos, moveList);
+            if (!pos.castling_impeded(OO) && pos.can_castle(OO))
+                *moveList++ = make<CASTLING>(ksq, pos.castling_rook_square(OO));
+
+            if (!pos.castling_impeded(OOO) && pos.can_castle(OOO))
+                *moveList++ = make<CASTLING>(ksq, pos.castling_rook_square(OOO));
         }
     }
 
@@ -535,14 +465,11 @@ namespace {
 } // namespace
 
 
-/// generate<CAPTURES> generates all pseudo-legal captures and queen
-/// promotions. Returns a pointer to the end of the move list.
+/// <CAPTURES>     Generates all pseudo-legal captures and queen promotions
+/// <QUIETS>       Generates all pseudo-legal non-captures and underpromotions
+/// <NON_EVASIONS> Generates all pseudo-legal captures and non-captures
 ///
-/// generate<QUIETS> generates all pseudo-legal non-captures and
-/// underpromotions. Returns a pointer to the end of the move list.
-///
-/// generate<NON_EVASIONS> generates all pseudo-legal captures and
-/// non-captures. Returns a pointer to the end of the move list.
+/// Returns a pointer to the end of the move list.
 
 template<GenType Type>
 ExtMove* generate(const Position& pos, ExtMove* moveList) {
@@ -569,7 +496,7 @@ ExtMove* generate(const Position& pos, ExtMove* moveList) {
   if (pos.is_atomic())
   {
       if (Type == CAPTURES || Type == NON_EVASIONS)
-          target &= ~(pos.pieces(~us) & pos.attacks_from<KING>(pos.square<KING>(us)));
+          target &= ~(pos.pieces(~us) & adjacent_squares_bb(pos.pieces(us, KING)));
       return us == WHITE ? generate_all<ATOMIC_VARIANT, WHITE, Type>(pos, moveList, target)
                          : generate_all<ATOMIC_VARIANT, BLACK, Type>(pos, moveList, target);
   }
@@ -737,7 +664,7 @@ ExtMove* generate<EVASIONS>(const Position& pos, ExtMove* moveList) {
   Bitboard sliderAttacks = 0;
   Bitboard sliders = pos.checkers() & ~pos.pieces(KNIGHT, PAWN);
 #ifdef ATOMIC
-  Bitboard kingAttacks = pos.is_atomic() ? pos.attacks_from<KING>(pos.square<KING>(~us)) : 0;
+  Bitboard kingRing = pos.is_atomic() ? adjacent_squares_bb(pos.pieces(~us, KING)) : 0;
 #endif
 
 #ifdef ATOMIC
@@ -745,14 +672,9 @@ ExtMove* generate<EVASIONS>(const Position& pos, ExtMove* moveList) {
   {
       // Blasts that explode the opposing king or explode all checkers
       // are counted among evasive moves.
-      Bitboard target = pos.pieces(~us), b = pos.checkers();
-      while (b)
-      {
-          Square s = pop_lsb(&b);
-          target &= pos.attacks_from<KING>(s) | s;
-      }
-      target |= kingAttacks;
-      target &= pos.pieces(~us) & ~pos.attacks_from<KING>(ksq);
+      Bitboard target = pos.pieces(~us) & (pos.checkers() | adjacent_squares_bb(pos.checkers()));
+      target |= kingRing;
+      target &= pos.pieces(~us) & ~adjacent_squares_bb(pos.pieces(us, KING));
       moveList = (us == WHITE ? generate_all<ATOMIC_VARIANT, WHITE, CAPTURES>(pos, moveList, target)
                               : generate_all<ATOMIC_VARIANT, BLACK, CAPTURES>(pos, moveList, target));
   }
@@ -776,7 +698,7 @@ ExtMove* generate<EVASIONS>(const Position& pos, ExtMove* moveList) {
   Bitboard b;
 #ifdef ATOMIC
   if (pos.is_atomic()) // Generate evasions for king, non capture moves
-      b = pos.attacks_from<KING>(ksq) & ~pos.pieces() & ~(sliderAttacks & ~kingAttacks);
+      b = pos.attacks_from<KING>(ksq) & ~pos.pieces() & ~(sliderAttacks & ~kingRing);
   else
 #endif
   b = pos.attacks_from<KING>(ksq) & ~pos.pieces(us) & ~sliderAttacks;
