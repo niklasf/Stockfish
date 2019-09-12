@@ -347,13 +347,9 @@ Position& Position::set(const string& fenStr, bool isChess960, Variant v, StateI
 #endif
       Rank rank = relative_rank(c, RANK_1);
       Square ksq = square<KING>(c);
-#ifdef ANTI
-      if (is_anti())
+#ifdef GIVEAWAY
+      if (is_giveaway())
       {
-#ifdef SUICIDE
-          if (is_suicide())
-              continue;
-#endif
           // X-FEN is ambiguous if there are multiple kings
           // Assume the first king on the rank has castling rights
           const Square* kl = squares<KING>(c);
@@ -478,19 +474,18 @@ Position& Position::set(const string& fenStr, bool isChess960, Variant v, StateI
 
 void Position::set_castling_right(Color c, Square kfrom, Square rfrom) {
 
-  CastlingSide cs = kfrom < rfrom ? KING_SIDE : QUEEN_SIDE;
-  CastlingRight cr = (c | cs);
+  CastlingRights cr = c & (kfrom < rfrom ? KING_SIDE: QUEEN_SIDE);
 
   st->castlingRights |= cr;
   castlingRightsMask[kfrom] |= cr;
   castlingRightsMask[rfrom] |= cr;
-#if defined(ANTI) || defined(EXTINCTION) || defined(TWOKINGS)
+#if defined(GIVEAWAY) || defined(EXTINCTION) || defined(TWOKINGS)
   castlingKingSquare[c] = kfrom;
 #endif
   castlingRookSquare[cr] = rfrom;
 
-  Square kto = relative_square(c, cs == KING_SIDE ? SQ_G1 : SQ_C1);
-  Square rto = relative_square(c, cs == KING_SIDE ? SQ_F1 : SQ_D1);
+  Square kto = relative_square(c, cr & KING_SIDE ? SQ_G1 : SQ_C1);
+  Square rto = relative_square(c, cr & KING_SIDE ? SQ_F1 : SQ_D1);
 
   castlingPath[cr] =   (between_bb(rfrom, rto) | between_bb(kfrom, kto) | rto | kto)
                     & ~(square_bb(kfrom) | rfrom);
@@ -665,13 +660,6 @@ void Position::set_state(StateInfo* si) const {
   {
       si->checkersBB = attackers_to(square<KING>(sideToMove)) & pieces(~sideToMove);
   }
-#ifdef ATOMIC
-  if (is_atomic())
-  {
-      std::memset(st->blastByTypeBB, 0, sizeof(st->blastByTypeBB));
-      std::memset(st->blastByColorBB, 0, sizeof(st->blastByColorBB));
-  }
-#endif
 
   for (Bitboard b = pieces(); b; )
   {
@@ -966,7 +954,8 @@ bool Position::legal(Move m) const {
   }
 #endif
 #ifdef ATOMIC
-  if (is_atomic())
+  // Atomic and atomic960 normal (non-castling), en passant, and promotion moves
+  if (is_atomic() && type_of(m) != CASTLING)
   {
       Square ksq = square<KING>(us);
 
@@ -992,6 +981,7 @@ bool Position::legal(Move m) const {
               return true;
           }
       }
+      // Non-castling king move (non-capture) which puts kings adjacent is legal
       else if (attacks_bb(KING, square<KING>(~us), 0) & to)
           return true;
   }
@@ -1039,8 +1029,11 @@ bool Position::legal(Move m) const {
           if (is_atomic())
           {
               // Atomic king cannot castle through check or discovered check
+              // Allow FICS-style atomic castling whereby the castling rook
+              // is moved before the king is moved and thereby blocks a check
+              Bitboard occupied = (s == to) ? pieces() : (pieces() ^ from);
               if (   !(attacks_bb(KING, square<KING>(~us), 0) & s)
-                  &&  (attackers_to(s, pieces() ^ from) & pieces(~us)))
+                  &&  (attackers_to(s, occupied) & pieces(~us)))
                   return false;
           }
           else
@@ -1300,11 +1293,13 @@ bool Position::gives_check(Move m) const {
       switch (type_of(m))
       {
       case CASTLING:
-          if (!(kingRing & square<KING>(sideToMove)) || relative_rank(sideToMove, ksq) == RANK_1)
+          // Standard rules apply unless kings will be connected after castling
+          if (relative_rank(sideToMove, ksq) != RANK_2)
               break;
           if (kingRing & relative_square(sideToMove, to > from ? SQ_G1 : SQ_C1))
               return false;
-          return attackers_to(ksq) & (pieces(sideToMove) ^ from ^ to);
+          // If kings are not adjacent, attackers_to(ksq) is empty (and slow)
+          return kings_adjacent() && (attackers_to(ksq) & (pieces(sideToMove) ^ from ^ to));
 
       default:
           if (kingRing & (type_of(piece_on(from)) == KING ? to : square<KING>(sideToMove)))
@@ -1418,6 +1413,13 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   // ones which are going to be recalculated from scratch anyway and then switch
   // our state pointer to point to the new (ready to be updated) state.
   std::memcpy(&newSt, st, offsetof(StateInfo, key));
+#ifdef ATOMIC
+  if (is_atomic())
+  {
+      std::memset(newSt.blastByTypeBB, 0, sizeof(newSt.blastByTypeBB));
+      std::memset(newSt.blastByColorBB, 0, sizeof(newSt.blastByColorBB));
+  }
+#endif
   newSt.previous = st;
   st = &newSt;
 
@@ -2588,6 +2590,9 @@ bool Position::pos_is_ok() const {
   }
   else
 #endif
+#ifdef PLACEMENT
+  if (is_placement()) {} else
+#endif
   if (   pieceCount[W_KING] != 1
       || pieceCount[B_KING] != 1
       || attackers_to(square<KING>(~sideToMove)) & pieces(sideToMove))
@@ -2657,6 +2662,10 @@ bool Position::pos_is_ok() const {
   if (is_anti() && st->checkersBB)
       assert(0 && "pos_is_ok: Checkers (antichess)");
 #endif
+#ifdef ATOMIC
+  if (is_atomic() && kings_adjacent() && st->checkersBB)
+      assert(0 && "pos_is_ok: Checkers (atomic)");
+#endif
 #ifdef EXTINCTION
   if (is_extinction() && st->checkersBB)
       assert(0 && "pos_is_ok: Checkers (extinction)");
@@ -2674,20 +2683,20 @@ bool Position::pos_is_ok() const {
   }
 
   for (Color c : { WHITE, BLACK })
-      for (CastlingSide s : {KING_SIDE, QUEEN_SIDE})
+      for (CastlingRights cr : {c & KING_SIDE, c & QUEEN_SIDE})
       {
-          if (!can_castle(c | s))
+          if (!can_castle(cr))
               continue;
 
-#if defined(ANTI) || defined(EXTINCTION) || defined(TWOKINGS)
-          if (   piece_on(castlingRookSquare[c | s]) != make_piece(c, ROOK)
+#if defined(GIVEAWAY) || defined(EXTINCTION) || defined(TWOKINGS)
+          if (   piece_on(castlingRookSquare[cr]) != make_piece(c, ROOK)
               || piece_on(castlingKingSquare[c]) != make_piece(c, KING)
-              || castlingRightsMask[castlingRookSquare[c | s]] != (c | s)
-              || (castlingRightsMask[castlingKingSquare[c]] & (c | s)) != (c | s))
+              || castlingRightsMask[castlingRookSquare[cr]] != (cr)
+              || (castlingRightsMask[castlingKingSquare[c]] & (cr)) != (cr))
 #else
-          if (   piece_on(castlingRookSquare[c | s]) != make_piece(c, ROOK)
-              || castlingRightsMask[castlingRookSquare[c | s]] != (c | s)
-              || (castlingRightsMask[square<KING>(c)] & (c | s)) != (c | s))
+          if (   piece_on(castlingRookSquare[cr]) != make_piece(c, ROOK)
+              || castlingRightsMask[castlingRookSquare[cr]] != (cr)
+              || (castlingRightsMask[square<KING>(c)] & (cr)) != (cr))
 #endif
               assert(0 && "pos_is_ok: Castling");
       }

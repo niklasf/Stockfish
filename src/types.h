@@ -148,6 +148,9 @@ enum Variant {
   VARIANT_NB,
   LAST_VARIANT = VARIANT_NB - 1,
   //subvariants
+#ifdef GIVEAWAY
+  GIVEAWAY_VARIANT,
+#endif
 #ifdef SUICIDE
   SUICIDE_VARIANT,
 #endif
@@ -177,7 +180,7 @@ static std::vector<std::string> variants = {
 //main variants
 "chess",
 #ifdef ANTI
-"giveaway",
+"antichess",
 #endif
 #ifdef ATOMIC
 "atomic",
@@ -210,6 +213,9 @@ static std::vector<std::string> variants = {
 "twokings",
 #endif
 //subvariants
+#ifdef GIVEAWAY
+"giveaway",
+#endif
 #ifdef SUICIDE
 "suicide",
 #endif
@@ -271,19 +277,17 @@ enum Color {
   WHITE, BLACK, COLOR_NB = 2
 };
 
-enum CastlingSide {
-  KING_SIDE, QUEEN_SIDE, CASTLING_SIDE_NB = 2
-};
-
-enum CastlingRight {
+enum CastlingRights {
   NO_CASTLING,
   WHITE_OO,
   WHITE_OOO = WHITE_OO << 1,
   BLACK_OO  = WHITE_OO << 2,
   BLACK_OOO = WHITE_OO << 3,
 
-  WHITE_CASTLING = WHITE_OO | WHITE_OOO,
-  BLACK_CASTLING = BLACK_OO | BLACK_OOO,
+  KING_SIDE      = WHITE_OO  | BLACK_OO,
+  QUEEN_SIDE     = WHITE_OOO | BLACK_OOO,
+  WHITE_CASTLING = WHITE_OO  | WHITE_OOO,
+  BLACK_CASTLING = BLACK_OO  | BLACK_OOO,
   ANY_CASTLING   = WHITE_CASTLING | BLACK_CASTLING,
 
   CASTLING_RIGHT_NB = 16
@@ -590,6 +594,11 @@ inline Score operator*(Score s, int i) {
   return result;
 }
 
+/// Multiplication of a Score by an boolean
+inline Score operator*(Score s, bool b) {
+  return Score(int(s) * int(b));
+}
+
 constexpr Color operator~(Color c) {
   return Color(c ^ BLACK); // Toggle color
 }
@@ -606,8 +615,8 @@ constexpr Piece operator~(Piece pc) {
   return Piece(pc ^ 8); // Swap color of piece B_KNIGHT -> W_KNIGHT
 }
 
-constexpr CastlingRight operator|(Color c, CastlingSide s) {
-  return CastlingRight(WHITE_OO << ((s == QUEEN_SIDE) + 2 * c));
+constexpr CastlingRights operator&(Color c, CastlingRights cr) {
+  return CastlingRights((c == WHITE ? WHITE_CASTLING : BLACK_CASTLING) & cr);
 }
 
 constexpr Value mate_in(int ply) {
@@ -720,6 +729,10 @@ constexpr Move make_move(Square from, Square to) {
   return Move((from << 6) + to);
 }
 
+inline Move reverse_move(Move m) {
+  return make_move(to_sq(m), from_sq(m));
+}
+
 template<MoveType T>
 inline Move make(Square from, Square to, PieceType pt = KNIGHT) {
 #if defined(ANTI) || defined(EXTINCTION)
@@ -748,6 +761,10 @@ inline Variant main_variant(Variant v) {
       return v;
   switch(v)
   {
+#ifdef GIVEAWAY
+  case GIVEAWAY_VARIANT:
+      return ANTI_VARIANT;
+#endif
 #ifdef SUICIDE
   case SUICIDE_VARIANT:
       return ANTI_VARIANT;

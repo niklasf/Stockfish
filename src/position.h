@@ -109,12 +109,12 @@ public:
 
   // Castling
   int castling_rights(Color c) const;
-  bool can_castle(CastlingRight cr) const;
-  bool castling_impeded(CastlingRight cr) const;
-#if defined(ANTI) || defined(EXTINCTION) || defined(TWOKINGS)
+  bool can_castle(CastlingRights cr) const;
+  bool castling_impeded(CastlingRights cr) const;
+#if defined(GIVEAWAY) || defined(EXTINCTION) || defined(TWOKINGS)
   Square castling_king_square(Color c) const;
 #endif
-  Square castling_rook_square(CastlingRight cr) const;
+  Square castling_rook_square(CastlingRights cr) const;
 
   // Checking
 #ifdef ATOMIC
@@ -271,6 +271,9 @@ public:
   bool can_capture() const;
   int capture_count(Move m) const;
 #endif
+#ifdef GIVEAWAY
+  bool is_giveaway() const;
+#endif
 #ifdef SUICIDE
   bool is_suicide() const;
 #endif
@@ -316,7 +319,7 @@ private:
 #endif
   int index[SQUARE_NB];
   int castlingRightsMask[SQUARE_NB];
-#if defined(ANTI) || defined(EXTINCTION) || defined(TWOKINGS)
+#if defined(GIVEAWAY) || defined(EXTINCTION) || defined(TWOKINGS)
   Square castlingKingSquare[COLOR_NB];
 #endif
   Square castlingRookSquare[CASTLING_RIGHT_NB];
@@ -493,7 +496,7 @@ inline bool Position::is_on_semiopen_file(Color c, Square s) const {
   return !(pieces(c, PAWN) & file_bb(s));
 }
 
-inline bool Position::can_castle(CastlingRight cr) const {
+inline bool Position::can_castle(CastlingRights cr) const {
   return st->castlingRights & cr;
 }
 
@@ -501,17 +504,17 @@ inline int Position::castling_rights(Color c) const {
   return st->castlingRights & (c == WHITE ? WHITE_CASTLING : BLACK_CASTLING);
 }
 
-inline bool Position::castling_impeded(CastlingRight cr) const {
+inline bool Position::castling_impeded(CastlingRights cr) const {
   return byTypeBB[ALL_PIECES] & castlingPath[cr];
 }
 
-#if defined(ANTI) || defined(EXTINCTION) || defined(TWOKINGS)
+#if defined(GIVEAWAY) || defined(EXTINCTION) || defined(TWOKINGS)
 inline Square Position::castling_king_square(Color c) const {
   return castlingKingSquare[c];
 }
 #endif
 
-inline Square Position::castling_rook_square(CastlingRight cr) const {
+inline Square Position::castling_rook_square(CastlingRights cr) const {
   return castlingRookSquare[cr];
 }
 
@@ -841,6 +844,12 @@ inline bool Position::can_capture_losers() const {
           return true;
   }
   return false;
+}
+#endif
+
+#ifdef GIVEAWAY
+inline bool Position::is_giveaway() const {
+  return subvar == GIVEAWAY_VARIANT;
 }
 #endif
 
