@@ -2,7 +2,7 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2019 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -45,7 +45,7 @@ namespace {
 #ifdef LOSERS
     if (V == LOSERS_VARIANT)
     {
-        if (Type == QUIETS || Type == CAPTURES || Type == NON_EVASIONS)
+        if (Type == QUIETS || Type == CAPTURES || Type == EVASIONS || Type == NON_EVASIONS)
         {
             *moveList++ = make<PROMOTION>(to - D, to, QUEEN);
             *moveList++ = make<PROMOTION>(to - D, to, ROOK);
@@ -116,6 +116,21 @@ namespace {
   }
 #endif
 
+#if defined(ANTI) || defined(EXTINCTION) || defined(TWOKINGS)
+  template<Variant V, Color Us, GenType Type>
+  ExtMove* generate_king_moves(const Position& pos, ExtMove* moveList, Bitboard target) {
+    Bitboard kings = pos.pieces(Us, KING);
+    while (kings)
+    {
+        Square ksq = pop_lsb(&kings);
+        Bitboard b = pos.attacks_from<KING>(ksq) & target;
+        while (b)
+            *moveList++ = make_move(ksq, pop_lsb(&b));
+    }
+    return moveList;
+  }
+#endif
+
   template<Variant V, Color Us, GenType Type>
   ExtMove* generate_pawn_moves(const Position& pos, ExtMove* moveList, Bitboard target) {
 
@@ -126,10 +141,17 @@ namespace {
     constexpr Bitboard  TRank2BB = (Us == WHITE ? Rank2BB    : Rank7BB);
 #endif
     constexpr Bitboard  TRank3BB = (Us == WHITE ? Rank3BB    : Rank6BB);
-    constexpr Direction Up       = (Us == WHITE ? NORTH      : SOUTH);
+    constexpr Direction Up       = pawn_push(Us);
     constexpr Direction UpRight  = (Us == WHITE ? NORTH_EAST : SOUTH_WEST);
     constexpr Direction UpLeft   = (Us == WHITE ? NORTH_WEST : SOUTH_EAST);
 
+    Square ksq;
+#ifdef HORDE
+    if (V == HORDE_VARIANT && pos.is_horde_color(Them))
+        ksq = SQ_NONE;
+    else
+#endif
+    ksq = pos.square<KING>(Them);
     Bitboard emptySquares;
 
     Bitboard pawnsOn7    = pos.pieces(Us, PAWN) &  TRank7BB;
@@ -173,8 +195,6 @@ namespace {
 
         if (Type == QUIET_CHECKS)
         {
-            Square ksq = pos.square<KING>(Them);
-
             b1 &= pos.attacks_from<PAWN>(ksq, Them);
             b2 &= pos.attacks_from<PAWN>(ksq, Them);
 
@@ -234,14 +254,6 @@ namespace {
         Bitboard b2 = shift<UpLeft >(pawnsOn7) & enemies;
         Bitboard b3 = shift<Up     >(pawnsOn7) & emptySquares;
 
-        Square ksq;
-#ifdef HORDE
-        if (V == HORDE_VARIANT && pos.is_horde_color(Them))
-            ksq = SQ_NONE;
-        else
-#endif
-        ksq = pos.square<KING>(Them);
-
         while (b1)
             moveList = make_promotions<V, Type, UpRight>(moveList, pop_lsb(&b1), ksq);
 
@@ -297,7 +309,7 @@ namespace {
   ExtMove* generate_moves(const Position& pos, ExtMove* moveList, Color us,
                           Bitboard target) {
 
-    assert(Pt != KING && Pt != PAWN);
+    static_assert(Pt != KING && Pt != PAWN, "Unsupported piece type in generate_moves()");
 
     const Square* pl = pos.squares<Pt>(us);
 
@@ -370,50 +382,27 @@ namespace {
     if (pos.is_horde() && pos.is_horde_color(Us))
         return moveList;
 #endif
-#ifdef ANTI
-    if (V == ANTI_VARIANT)
+    switch (V)
     {
-        Bitboard kings = pos.pieces(Us, KING);
-        while (kings)
-        {
-            Square ksq = pop_lsb(&kings);
-            Bitboard b = pos.attacks_from<KING>(ksq) & target;
-            while (b)
-                *moveList++ = make_move(ksq, pop_lsb(&b));
-        }
+#ifdef ANTI
+    case ANTI_VARIANT:
+        moveList = generate_king_moves<V, Us, Type>(pos, moveList, target);
         if (pos.can_capture())
             return moveList;
-    }
-    else
+    break;
 #endif
 #ifdef EXTINCTION
-    if (V == EXTINCTION_VARIANT)
-    {
-        Bitboard kings = pos.pieces(Us, KING);
-        while (kings)
-        {
-            Square ksq = pop_lsb(&kings);
-            Bitboard b = pos.attacks_from<KING>(ksq) & target;
-            while (b)
-                *moveList++ = make_move(ksq, pop_lsb(&b));
-        }
-    }
-    else
+    case EXTINCTION_VARIANT:
+        moveList = generate_king_moves<V, Us, Type>(pos, moveList, target);
+    break;
 #endif
 #ifdef TWOKINGS
-    if (V == TWOKINGS_VARIANT && Type != EVASIONS)
-    {
-        Bitboard kings = pos.pieces(Us, KING);
-        while (kings)
-        {
-            Square ksq = pop_lsb(&kings);
-            Bitboard b = pos.attacks_from<KING>(ksq) & target;
-            while (b)
-                *moveList++ = make_move(ksq, pop_lsb(&b));
-        }
-    }
-    else
+    case TWOKINGS_VARIANT:
+        if (Type != EVASIONS)
+            moveList = generate_king_moves<V, Us, Type>(pos, moveList, target);
+    break;
 #endif
+    default:
     if (Type != QUIET_CHECKS && Type != EVASIONS)
     {
         Square ksq = pos.square<KING>(Us);
@@ -421,6 +410,7 @@ namespace {
 #ifdef RACE
         if (V == RACE_VARIANT)
         {
+            // Early generate king advance moves
             if (Type == CAPTURES)
                 b |= pos.attacks_from<KING>(ksq) & passed_pawn_span(WHITE, ksq) & ~pos.pieces();
             if (Type == QUIETS)
@@ -429,6 +419,7 @@ namespace {
 #endif
         while (b)
             *moveList++ = make_move(ksq, pop_lsb(&b));
+    }
     }
     if (Type != QUIET_CHECKS && Type != EVASIONS)
     {
@@ -474,7 +465,7 @@ namespace {
 template<GenType Type>
 ExtMove* generate(const Position& pos, ExtMove* moveList) {
 
-  assert(Type == CAPTURES || Type == QUIETS || Type == NON_EVASIONS);
+  static_assert(Type == CAPTURES || Type == QUIETS || Type == NON_EVASIONS, "Unsupported type in generate()");
   assert(!pos.checkers());
 
   Color us = pos.side_to_move();

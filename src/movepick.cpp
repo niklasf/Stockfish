@@ -2,7 +2,7 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2019 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -61,7 +61,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHist
            : pos(p), mainHistory(mh), captureHistory(cph), continuationHistory(ch),
              refutations{{killers[0], 0}, {killers[1], 0}, {cm, 0}}, depth(d) {
 
-  assert(d > DEPTH_ZERO);
+  assert(d > 0);
 
   stage = pos.checkers() ? EVASION_TT : MAIN_TT;
   ttMove = ttm && pos.pseudo_legal(ttm) ? ttm : MOVE_NONE;
@@ -73,7 +73,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHist
                        const CapturePieceToHistory* cph, const PieceToHistory** ch, Square rs)
            : pos(p), mainHistory(mh), captureHistory(cph), continuationHistory(ch), recaptureSquare(rs), depth(d) {
 
-  assert(d <= DEPTH_ZERO);
+  assert(d <= 0);
 
   stage = pos.checkers() ? EVASION_TT : QSEARCH_TT;
   ttMove =   ttm
@@ -110,7 +110,8 @@ void MovePicker::score() {
       {
 #ifdef ATOMIC
           if (pos.is_atomic())
-              m.value = pos.see<ATOMIC_VARIANT>(m) * 6;
+              m.value = pos.see<ATOMIC_VARIANT>(m) * 6
+                   + (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))];
           else
 #endif
 #ifdef RACE
@@ -126,11 +127,11 @@ void MovePicker::score() {
       }
       else if (Type == QUIETS)
       {
-          m.value =  (*mainHistory)[pos.side_to_move()][from_to(m)]
-                   + (*continuationHistory[0])[pos.moved_piece(m)][to_sq(m)]
-                   + (*continuationHistory[1])[pos.moved_piece(m)][to_sq(m)]
-                   + (*continuationHistory[3])[pos.moved_piece(m)][to_sq(m)]
-                   + (*continuationHistory[5])[pos.moved_piece(m)][to_sq(m)] / 2;
+          m.value =      (*mainHistory)[pos.side_to_move()][from_to(m)]
+                   + 2 * (*continuationHistory[0])[pos.moved_piece(m)][to_sq(m)]
+                   + 2 * (*continuationHistory[1])[pos.moved_piece(m)][to_sq(m)]
+                   + 2 * (*continuationHistory[3])[pos.moved_piece(m)][to_sq(m)]
+                   +     (*continuationHistory[5])[pos.moved_piece(m)][to_sq(m)];
 #ifdef ANTI
           if (pos.is_anti() && pos.attackers_to(to_sq(m), pos.pieces() ^ from_sq(m)) & pos.pieces(~pos.side_to_move()))
           {
@@ -230,7 +231,7 @@ top:
           endMoves = generate<QUIETS>(pos, cur);
 
           score<QUIETS>();
-          partial_insertion_sort(cur, endMoves, -4000 * depth / ONE_PLY);
+          partial_insertion_sort(cur, endMoves, -3000 * depth);
       }
 
       ++stage;

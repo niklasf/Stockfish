@@ -2,7 +2,7 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2019 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -59,11 +59,6 @@ constexpr Bitboard Rank5BB = Rank1BB << (8 * 4);
 constexpr Bitboard Rank6BB = Rank1BB << (8 * 5);
 constexpr Bitboard Rank7BB = Rank1BB << (8 * 6);
 constexpr Bitboard Rank8BB = Rank1BB << (8 * 7);
-
-#ifdef CRAZYHOUSE
-const Bitboard Rank1234BB = Rank1BB | Rank2BB | Rank3BB | Rank4BB;
-const Bitboard Rank5678BB = Rank5BB | Rank6BB | Rank7BB | Rank8BB;
-#endif
 
 constexpr Bitboard QueenSide   = FileABB | FileBBB | FileCBB | FileDBB;
 constexpr Bitboard CenterFiles = FileCBB | FileDBB | FileEBB | FileFBB;
@@ -126,6 +121,12 @@ inline Bitboard& operator|=(Bitboard& b, Square s) { return b |= square_bb(s); }
 inline Bitboard& operator^=(Bitboard& b, Square s) { return b ^= square_bb(s); }
 inline Bitboard& operator-=(Bitboard& b, Square s) { return b &= ~square_bb(s); }
 
+inline Bitboard  operator&(Square s, Bitboard b) { return b & s; }
+inline Bitboard  operator|(Square s, Bitboard b) { return b | s; }
+inline Bitboard  operator^(Square s, Bitboard b) { return b ^ s; }
+
+inline Bitboard  operator|(Square s, Square s2) { return square_bb(s) | square_bb(s2); }
+
 constexpr bool more_than_one(Bitboard b) {
   return b & (b - 1);
 }
@@ -153,12 +154,6 @@ inline Bitboard file_bb(File f) {
 inline Bitboard file_bb(Square s) {
   return file_bb(file_of(s));
 }
-
-#ifdef GRID
-inline Bitboard grid_layout_bb(GridLayout l, Square s) {
-  return GridBB[l][s];
-}
-#endif
 
 
 /// shift() moves a bitboard one step along direction D
@@ -400,8 +395,10 @@ inline Square pop_lsb(Bitboard* b) {
 inline Square frontmost_sq(Color c, Bitboard b) {
   return c == WHITE ? msb(b) : lsb(b);
 }
+#ifdef TWOKINGS
 inline Square backmost_sq(Color c, Bitboard b) {
   return c == WHITE ? lsb(b) : msb(b);
 }
+#endif // #ifndef BITBOARD_H_INCLUDED
 
 #endif // #ifndef BITBOARD_H_INCLUDED

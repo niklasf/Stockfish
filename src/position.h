@@ -2,7 +2,7 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2019 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -48,7 +48,6 @@ struct StateInfo {
   Square epSquare;
 
   // Not copied when making a move (will be recomputed anyhow)
-  int repetition;
   Key        key;
   Bitboard   checkersBB;
   Piece      capturedPiece;
@@ -63,6 +62,7 @@ struct StateInfo {
   Bitboard   blockersForKing[COLOR_NB];
   Bitboard   pinners[COLOR_NB];
   Bitboard   checkSquares[PIECE_TYPE_NB];
+  int        repetition;
 };
 
 /// A list to keep track of the position states along the setup moves (from the
@@ -143,7 +143,6 @@ public:
   bool capture(Move m) const;
   bool capture_or_promotion(Move m) const;
   bool gives_check(Move m) const;
-  bool gives_discovered_check(Move m) const;
   bool advanced_pawn_push(Move m) const;
   Piece moved_piece(Move m) const;
   Piece captured_piece() const;
@@ -198,7 +197,6 @@ public:
 #ifdef CRAZYHOUSE
   bool is_house() const;
   template<PieceType Pt> int count_in_hand(Color c) const;
-  Value material_in_hand(Color c) const;
   void add_to_hand(Color c, PieceType pt);
   void remove_from_hand(Color c, PieceType pt);
   bool is_promoted(Square s) const;
@@ -269,7 +267,6 @@ public:
 #endif
 #if defined(ANTI) || defined(LOSERS)
   bool can_capture() const;
-  int capture_count(Move m) const;
 #endif
 #ifdef GIVEAWAY
   bool is_giveaway() const;
@@ -505,6 +502,8 @@ inline int Position::castling_rights(Color c) const {
 }
 
 inline bool Position::castling_impeded(CastlingRights cr) const {
+  assert(cr == WHITE_OO || cr == WHITE_OOO || cr == BLACK_OO || cr == BLACK_OOO);
+
   return byTypeBB[ALL_PIECES] & castlingPath[cr];
 }
 
@@ -515,12 +514,15 @@ inline Square Position::castling_king_square(Color c) const {
 #endif
 
 inline Square Position::castling_rook_square(CastlingRights cr) const {
+  assert(cr == WHITE_OO || cr == WHITE_OOO || cr == BLACK_OO || cr == BLACK_OOO);
+
   return castlingRookSquare[cr];
 }
 
 template<PieceType Pt>
 inline Bitboard Position::attacks_from(Square s) const {
-  assert(Pt != PAWN);
+  static_assert(Pt != PAWN, "Pawn attacks need color");
+
   return  Pt == BISHOP || Pt == ROOK ? attacks_bb<Pt>(s, byTypeBB[ALL_PIECES])
         : Pt == QUEEN  ? attacks_from<ROOK>(s) | attacks_from<BISHOP>(s)
         : PseudoAttacks[Pt][s];
@@ -557,19 +559,15 @@ inline Bitboard Position::blockers_for_king(Color c) const {
   return st->blockersForKing[c];
 }
 
-inline bool Position::gives_discovered_check(Move m) const {
-#ifdef CRAZYHOUSE
-  if (is_house() && type_of(m) == DROP)
-      return false;
-#endif
-  return blockers_for_king(~sideToMove) & from_sq(m);
-}
-
 inline Bitboard Position::check_squares(PieceType pt) const {
   return st->checkSquares[pt];
 }
 
 inline bool Position::is_discovery_check_on_king(Color c, Move m) const {
+#ifdef CRAZYHOUSE
+  if (is_house() && type_of(m) == DROP)
+      return false;
+#endif
   return st->blockersForKing[c] & from_sq(m);
 }
 
@@ -691,7 +689,7 @@ inline GridLayout Position::grid_layout() const {
 }
 
 inline Bitboard Position::grid_bb(Square s) const {
-  return grid_layout_bb(grid_layout(), s);
+  return GridBB[grid_layout()][s];
 }
 #endif
 
@@ -754,22 +752,6 @@ inline bool Position::can_capture() const {
           return true;
   }
   return false;
-}
-
-// Position::capture_count estimates the count of captures after this move
-
-inline int Position::capture_count(Move m) const {
-  Square from = from_sq(m), to = to_sq(m);
-  Bitboard target = (pieces(sideToMove) ^ from) ^ to;
-  Bitboard occupied = type_of(m) == ENPASSANT ? ((pieces() ^ from) ^ to) ^ (ep_square() - pawn_push(sideToMove)) : (pieces() ^ from) ^ to;
-  Bitboard b1 = pieces(~sideToMove, PAWN) & occupied, b2 = (pieces(~sideToMove) ^ b1) & occupied;
-  int c = popcount(((sideToMove == WHITE ? pawn_attacks_bb<BLACK>(b1) : pawn_attacks_bb<WHITE>(b1))) & target);
-  while (b2)
-  {
-      Square s = pop_lsb(&b2);
-      c += popcount(attacks_bb(type_of(piece_on(s)), s, occupied) & target);
-  }
-  return c;
 }
 #endif
 
@@ -866,13 +848,6 @@ inline bool Position::is_house() const {
 
 template<PieceType Pt> inline int Position::count_in_hand(Color c) const {
   return pieceCountInHand[c][Pt];
-}
-
-inline Value Position::material_in_hand(Color c) const {
-  Value v = VALUE_ZERO;
-  for (PieceType pt = PAWN; pt <= QUEEN; ++pt)
-      v += pieceCountInHand[c][pt] * PieceValue[var][MG][pt];
-  return v;
 }
 
 inline void Position::add_to_hand(Color c, PieceType pt) {
@@ -1189,7 +1164,7 @@ inline void Position::move_piece(Piece pc, Square from, Square to) {
 
   // index[from] is not updated and becomes stale. This works as long as index[]
   // is accessed just by known occupied squares.
-  Bitboard fromTo = square_bb(from) | square_bb(to);
+  Bitboard fromTo = from | to;
   byTypeBB[ALL_PIECES] ^= fromTo;
   byTypeBB[type_of(pc)] ^= fromTo;
   byColorBB[color_of(pc)] ^= fromTo;

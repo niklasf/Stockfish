@@ -2,7 +2,7 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2019 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -489,26 +489,28 @@ Entry* probe(const Position& pos) {
   if ((e->evaluationFunction = Endgames::probe<Value>(key)) != nullptr)
       return e;
 
-  if (pos.variant() == CHESS_VARIANT)
+  switch (pos.variant())
   {
-  for (Color c : { WHITE, BLACK })
-      if (is_KXK(pos, c))
-      {
-          e->evaluationFunction = &EvaluateKXK[c];
-          return e;
-      }
-  }
 #ifdef ATOMIC
-  else if (pos.is_atomic())
-  {
+  case ATOMIC_VARIANT:
       for (Color c : { WHITE, BLACK })
           if (is_KXK_atomic(pos, c))
           {
               e->evaluationFunction = &EvaluateAtomicKXK[c];
               return e;
           }
-  }
+  break;
 #endif
+  case CHESS_VARIANT:
+  for (Color c : { WHITE, BLACK })
+      if (is_KXK(pos, c))
+      {
+          e->evaluationFunction = &EvaluateKXK[c];
+          return e;
+      }
+  break;
+  default: break;
+  }
 
   // OK, we didn't find any special evaluation function for the current material
   // configuration. Is there a suitable specialized scaling function?
@@ -520,8 +522,15 @@ Entry* probe(const Position& pos) {
       return e;
   }
 
-  if (pos.variant() == CHESS_VARIANT)
+  switch (pos.variant())
   {
+#ifdef GRID
+  case GRID_VARIANT:
+      if (npm_w <= RookValueMg && npm_b <= RookValueMg)
+          e->factor[WHITE] = e->factor[BLACK] = 10;
+  break;
+#endif
+  case CHESS_VARIANT:
   // We didn't find any specialized scaling function, so fall back on generic
   // ones that refer to more than one material distribution. Note that in this
   // case we don't return after setting the function.
@@ -538,13 +547,13 @@ Entry* probe(const Position& pos) {
   {
       if (!pos.count<PAWN>(BLACK))
       {
-          assert(pos.variant() != CHESS_VARIANT || pos.count<PAWN>(WHITE) >= 2);
+          assert(pos.count<PAWN>(WHITE) >= 2);
 
           e->scalingFunction[WHITE] = &ScaleKPsK[WHITE];
       }
       else if (!pos.count<PAWN>(WHITE))
       {
-          assert(pos.variant() != CHESS_VARIANT || pos.count<PAWN>(BLACK) >= 2);
+          assert(pos.count<PAWN>(BLACK) >= 2);
 
           e->scalingFunction[BLACK] = &ScaleKPsK[BLACK];
       }
@@ -556,6 +565,8 @@ Entry* probe(const Position& pos) {
           e->scalingFunction[BLACK] = &ScaleKPKP[BLACK];
       }
   }
+  /* fall-through */
+  default:
 
   // Zero or just one pawn makes it difficult to win, even with a small material
   // advantage. This catches some trivial draws like KK, KBK and KNK and gives a

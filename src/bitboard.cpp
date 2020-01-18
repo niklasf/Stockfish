@@ -2,7 +2,7 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2019 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -183,15 +183,6 @@ namespace {
 
   Bitboard relevant_occupancies(Direction directions[], Square s);
   void init_magics(MagicInit init[], Magic magics[], Direction directions[], unsigned shift);
-
-  // popcount16() counts the non-zero bits using SWAR-Popcount algorithm
-
-  unsigned popcount16(unsigned u) {
-    u -= (u >> 1) & 0x5555U;
-    u = ((u >> 2) & 0x3333U) + (u & 0x3333U);
-    u = ((u >> 4) + u) & 0x0F0FU;
-    return (u * 0x0101U) >> 8;
-  }
 }
 
 
@@ -227,25 +218,29 @@ void Bitboards::init() {
 
   for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
       for (Square s2 = SQ_A1; s2 <= SQ_H8; ++s2)
-              SquareDistance[s1][s2] = std::max(distance<File>(s1, s2), distance<Rank>(s1, s2));
+          SquareDistance[s1][s2] = std::max(distance<File>(s1, s2), distance<Rank>(s1, s2));
 
-  int steps[][5] = { {}, { 7, 9 }, { 6, 10, 15, 17 }, {}, {}, {}, { 1, 7, 8, 9 } };
+  for (Square s = SQ_A1; s <= SQ_H8; ++s)
+  {
+      PawnAttacks[WHITE][s] = pawn_attacks_bb<WHITE>(square_bb(s));
+      PawnAttacks[BLACK][s] = pawn_attacks_bb<BLACK>(square_bb(s));
+  }
 
-  for (Color c : { WHITE, BLACK })
-      for (PieceType pt : { PAWN, KNIGHT, KING })
-          for (Square s = SQ_A1; s <= SQ_H8; ++s)
-              for (int i = 0; steps[pt][i]; ++i)
-              {
-                  Square to = s + Direction(c == WHITE ? steps[pt][i] : -steps[pt][i]);
+  // Helper returning the target bitboard of a step from a square
+  auto landing_square_bb = [&](Square s, int step)
+  {
+      Square to = Square(s + step);
+      return is_ok(to) && distance(s, to) <= 2 ? square_bb(to) : Bitboard(0);
+  };
 
-                  if (is_ok(to) && distance(s, to) < 3)
-                  {
-                      if (pt == PAWN)
-                          PawnAttacks[c][s] |= to;
-                      else
-                          PseudoAttacks[pt][s] |= to;
-                  }
-              }
+  for (Square s = SQ_A1; s <= SQ_H8; ++s)
+  {
+      for (int step : {-9, -8, -7, -1, 1, 7, 8, 9} )
+         PseudoAttacks[KING][s] |= landing_square_bb(s, step);
+
+      for (int step : {-17, -15, -10, -6, 6, 10, 15, 17} )
+         PseudoAttacks[KNIGHT][s] |= landing_square_bb(s, step);
+  }
 
   Direction RookDirections[] = { NORTH, EAST, SOUTH, WEST };
   Direction BishopDirections[] = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
@@ -284,22 +279,22 @@ void Bitboards::init() {
 #ifdef GRID
   for (Square s = SQ_A1; s <= SQ_H8; ++s)
   {
-      GridBB[NORMAL_GRID][s]    = SquareBB[s] | SquareBB[s ^ 8] | SquareBB[s ^ 1] | SquareBB[s ^ 9];
+      GridBB[NORMAL_GRID][s]    = SquareBB[s] | SquareBB[int(s) ^ 8] | SquareBB[int(s) ^ 1] | SquareBB[int(s) ^ 9];
 #ifdef DISPLACEDGRID
       GridBB[DISPLACED_GRID][s] = SquareBB[s];
       if (!((FileABB | FileHBB) & s))
-           GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 1) ^ 1) - 1];
+          GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 1) ^ 1) - 1];
       if (!((Rank1BB | Rank8BB) & s))
-           GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 8) ^ 8) - 8];
+          GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 8) ^ 8) - 8];
       if (!((Rank1BB | Rank8BB | FileABB | FileHBB) & s))
-           GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 9) ^ 9) - 9];
+          GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 9) ^ 9) - 9];
 #endif
 #ifdef SLIPPEDGRID
-      GridBB[SLIPPED_GRID][s] = SquareBB[s] | SquareBB[s ^ 8];
+      GridBB[SLIPPED_GRID][s] = SquareBB[s] | SquareBB[int(s) ^ 8];
       if (!((FileABB | FileHBB) & s))
       {
-           GridBB[SLIPPED_GRID][s] |= SquareBB[((s + 1) ^ 1) - 1];
-           GridBB[SLIPPED_GRID][s] |= SquareBB[(((s + 1) ^ 1) - 1) ^ 8];
+          GridBB[SLIPPED_GRID][s] |= SquareBB[((s + 1) ^ 1) - 1];
+          GridBB[SLIPPED_GRID][s] |= SquareBB[(((s + 1) ^ 1) - 1) ^ 8];
       }
 #endif
   }

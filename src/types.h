@@ -2,7 +2,7 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2019 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -43,6 +43,7 @@
 #include <climits>
 #include <cstdint>
 #include <cstdlib>
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -344,10 +345,10 @@ enum Value : int {
   VALUE_MATED_IN_MAX_PLY = -VALUE_MATE + 2 * MAX_PLY,
 
   PawnValueMg   = 128,   PawnValueEg   = 213,
-  KnightValueMg = 782,   KnightValueEg = 865,
-  BishopValueMg = 830,   BishopValueEg = 918,
-  RookValueMg   = 1289,  RookValueEg   = 1378,
-  QueenValueMg  = 2529,  QueenValueEg  = 2687,
+  KnightValueMg = 781,   KnightValueEg = 854,
+  BishopValueMg = 825,   BishopValueEg = 915,
+  RookValueMg   = 1276,  RookValueEg   = 1380,
+  QueenValueMg  = 2538,  QueenValueEg  = 2682,
 #ifdef ANTI
   PawnValueMgAnti   = -108,  PawnValueEgAnti   = -165,
   KnightValueMgAnti = -155,  KnightValueEgAnti = 194,
@@ -447,21 +448,17 @@ enum Piece {
 
 extern Value PieceValue[VARIANT_NB][PHASE_NB][PIECE_NB];
 
-enum Depth : int {
+typedef int Depth;
 
-  ONE_PLY = 1,
+enum : int {
 
-  DEPTH_ZERO          =  0 * ONE_PLY,
-  DEPTH_QS_CHECKS     =  0 * ONE_PLY,
-  DEPTH_QS_NO_CHECKS  = -1 * ONE_PLY,
-  DEPTH_QS_RECAPTURES = -5 * ONE_PLY,
+  DEPTH_QS_CHECKS     =  0,
+  DEPTH_QS_NO_CHECKS  = -1,
+  DEPTH_QS_RECAPTURES = -5,
 
-  DEPTH_NONE   = -6 * ONE_PLY,
+  DEPTH_NONE   = -6,
   DEPTH_OFFSET = DEPTH_NONE,
-  DEPTH_MAX    = MAX_PLY * ONE_PLY
 };
-
-static_assert(!(ONE_PLY & (ONE_PLY - 1)), "ONE_PLY is not a power of 2");
 
 enum Square : int {
   SQ_A1, SQ_B1, SQ_C1, SQ_D1, SQ_E1, SQ_F1, SQ_G1, SQ_H1,
@@ -542,7 +539,6 @@ inline T& operator*=(T& d, int i) { return d = T(int(d) * i); }    \
 inline T& operator/=(T& d, int i) { return d = T(int(d) / i); }
 
 ENABLE_FULL_OPERATORS_ON(Value)
-ENABLE_FULL_OPERATORS_ON(Depth)
 ENABLE_FULL_OPERATORS_ON(Direction)
 
 ENABLE_INCR_OPERATORS_ON(Variant)
@@ -594,7 +590,7 @@ inline Score operator*(Score s, int i) {
   return result;
 }
 
-/// Multiplication of a Score by an boolean
+/// Multiplication of a Score by a boolean
 inline Score operator*(Score s, bool b) {
   return Score(int(s) * int(b));
 }
@@ -607,12 +603,12 @@ constexpr Square operator~(Square s) {
   return Square(s ^ SQ_A8); // Vertical flip SQ_A1 -> SQ_A8
 }
 
-constexpr File operator~(File f) {
-  return File(f ^ FILE_H); // Horizontal flip FILE_A -> FILE_H
-}
-
 constexpr Piece operator~(Piece pc) {
   return Piece(pc ^ 8); // Swap color of piece B_KNIGHT -> W_KNIGHT
+}
+
+inline File map_to_queenside(File f) {
+  return std::min(f, File(FILE_H - f)); // Map files ABCDEFGH to files ABCDDCBA
 }
 
 constexpr CastlingRights operator&(Color c, CastlingRights cr) {
@@ -674,7 +670,7 @@ constexpr Direction pawn_push(Color c) {
 
 #ifdef RACE
 constexpr Square horizontal_flip(Square s) {
-  return Square(s ^ SQ_H1); // Horizontal flip SQ_A1 -> SQ_H1
+  return Square(s ^ (FILE_NB - 1)); // Horizontal flip SQ_A1 -> SQ_H1
 }
 #endif
 
