@@ -2,7 +2,7 @@ lichess.org custom Stockfish
 ============================
 
 This is lichess.org custom Stockfish by
-[@ddugovic](https://github.com/ddugovic/Stockfish) et al.
+[@ddugovic, @ianfab et al](https://github.com/ddugovic/Stockfish).
 It has variant support and additional hardening.
 
 Operating System | Status | profile-build | build
