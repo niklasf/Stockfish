@@ -63,11 +63,12 @@ void TranspositionTable::resize(size_t mbSize) {
 
   Threads.main()->wait_for_search_finished();
 
-  clusterCount = mbSize * 1024 * 1024 / sizeof(Cluster);
+  aligned_ttmem_free(mem);
 
-  free(mem);
-  mem = malloc(clusterCount * sizeof(Cluster) + CacheLineSize - 1);
+  superClusterCount = mbSize * 1024 * 1024 / (sizeof(Cluster) * ClustersPerSuperCluster);
 
+  table = static_cast<Cluster*>(
+      aligned_ttmem_alloc(superClusterCount * ClustersPerSuperCluster * sizeof(Cluster), mem));
   if (!mem)
   {
       std::cerr << "Failed to allocate " << mbSize
@@ -75,7 +76,6 @@ void TranspositionTable::resize(size_t mbSize) {
       exit(EXIT_FAILURE);
   }
 
-  table = (Cluster*)((uintptr_t(mem) + CacheLineSize - 1) & ~(CacheLineSize - 1));
   clear();
 }
 
@@ -91,13 +91,15 @@ void TranspositionTable::clear() {
   {
       threads.emplace_back([this, idx]() {
 
+          const size_t clusterCount = superClusterCount * ClustersPerSuperCluster;
+
           // Thread binding gives faster search on systems with a first-touch policy
           if (Options["Threads"] > 8)
               WinProcGroup::bindThisThread(idx);
 
           // Each thread will zero its part of the hash table
-          const size_t stride = clusterCount / Options["Threads"],
-                       start  = stride * idx,
+          const size_t stride = size_t(clusterCount / Options["Threads"]),
+                       start  = size_t(stride * idx),
                        len    = idx != Options["Threads"] - 1 ?
                                 stride : clusterCount - start;
 
@@ -105,7 +107,7 @@ void TranspositionTable::clear() {
       });
   }
 
-  for (std::thread& th: threads)
+  for (std::thread& th : threads)
       th.join();
 }
 
@@ -150,9 +152,9 @@ TTEntry* TranspositionTable::probe(const Key key, bool& found) const {
 int TranspositionTable::hashfull() const {
 
   int cnt = 0;
-  for (int i = 0; i < 1000 / ClusterSize; ++i)
+  for (int i = 0; i < 1000; ++i)
       for (int j = 0; j < ClusterSize; ++j)
           cnt += (table[i].entry[j].genBound8 & 0xF8) == generation8;
 
-  return cnt * 1000 / (ClusterSize * (1000 / ClusterSize));
+  return cnt / ClusterSize;
 }

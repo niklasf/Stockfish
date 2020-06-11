@@ -76,6 +76,12 @@ namespace {
 #ifdef TWOKINGS
   "rnbqkknr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKKNR w KQkq - 0 1",
 #endif
+#ifdef ANTIHELPMATE
+  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+#endif
+#ifdef HELPMATE
+  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+#endif
 #ifdef GIVEAWAY
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
@@ -93,6 +99,12 @@ namespace {
 #endif
 #ifdef PLACEMENT
   "8/pppppppp/8/8/8/8/PPPPPPPP/8[KQRRBBNNkqrrbbnn] w - -",
+#endif
+#ifdef KNIGHTRELAY
+  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+#endif
+#ifdef RELAY
+  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
 #ifdef SLIPPEDGRID
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
@@ -183,7 +195,7 @@ namespace {
     limits.startTime = now(); // As early as possible!
 
     while (is >> token)
-        if (token == "searchmoves")
+        if (token == "searchmoves") // Needs to be the last command on the line
             while (is >> token)
                 limits.searchmoves.push_back(UCI::to_move(pos, token));
 
@@ -328,7 +340,7 @@ string UCI::value(Value v) {
 
   stringstream ss;
 
-  if (abs(v) < VALUE_MATE - MAX_PLY)
+  if (abs(v) < VALUE_MATE_IN_MAX_PLY)
       ss << "cp " << v * 100 / PawnValueEg;
   else
       ss << "mate " << (v > 0 ? VALUE_MATE - v + 1 : -VALUE_MATE - v - 1) / 2;

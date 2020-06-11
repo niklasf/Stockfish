@@ -149,6 +149,12 @@ enum Variant {
   VARIANT_NB,
   LAST_VARIANT = VARIANT_NB - 1,
   //subvariants
+#ifdef ANTIHELPMATE
+  ANTIHELPMATE_VARIANT,
+#endif
+#ifdef HELPMATE
+  HELPMATE_VARIANT,
+#endif
 #ifdef GIVEAWAY
   GIVEAWAY_VARIANT,
 #endif
@@ -166,6 +172,12 @@ enum Variant {
 #endif
 #ifdef PLACEMENT
   PLACEMENT_VARIANT,
+#endif
+#ifdef KNIGHTRELAY
+  KNIGHTRELAY_VARIANT,
+#endif
+#ifdef RELAY
+  RELAY_VARIANT,
 #endif
 #ifdef SLIPPEDGRID
   SLIPPEDGRID_VARIANT,
@@ -214,6 +226,12 @@ static std::vector<std::string> variants = {
 "twokings",
 #endif
 //subvariants
+#ifdef ANTIHELPMATE
+"antihelpmate",
+#endif
+#ifdef HELPMATE
+"helpmate",
+#endif
 #ifdef GIVEAWAY
 "giveaway",
 #endif
@@ -231,6 +249,12 @@ static std::vector<std::string> variants = {
 #endif
 #ifdef PLACEMENT
 "placement",
+#endif
+#ifdef KNIGHTRELAY
+"knightrelay",
+#endif
+#ifdef RELAY
+"relay",
 #endif
 #ifdef SLIPPEDGRID
 "slippedgrid",
@@ -341,10 +365,12 @@ enum Value : int {
   VALUE_INFINITE  = 32001,
   VALUE_NONE      = 32002,
 
-  VALUE_MATE_IN_MAX_PLY  =  VALUE_MATE - 2 * MAX_PLY,
-  VALUE_MATED_IN_MAX_PLY = -VALUE_MATE + 2 * MAX_PLY,
+  VALUE_TB_WIN_IN_MAX_PLY  =  VALUE_MATE - 2 * MAX_PLY,
+  VALUE_TB_LOSS_IN_MAX_PLY = -VALUE_TB_WIN_IN_MAX_PLY,
+  VALUE_MATE_IN_MAX_PLY  =  VALUE_MATE - MAX_PLY,
+  VALUE_MATED_IN_MAX_PLY = -VALUE_MATE_IN_MAX_PLY,
 
-  PawnValueMg   = 128,   PawnValueEg   = 213,
+  PawnValueMg   = 124,   PawnValueEg   = 206,
   KnightValueMg = 781,   KnightValueEg = 854,
   BishopValueMg = 825,   BishopValueEg = 915,
   RookValueMg   = 1276,  RookValueEg   = 1380,
@@ -429,6 +455,7 @@ enum Value : int {
   QueenValueMgTwoKings  = 2455,  QueenValueEgTwoKings  = 2846,
   KingValueMgTwoKings   = 554,   KingValueEgTwoKings   = 806,
 #endif
+  Tempo = 28,
 
   MidgameLimit  = 15258, EndgameLimit  = 3915
 };
@@ -446,7 +473,102 @@ enum Piece {
   PIECE_NB = 16
 };
 
-extern Value PieceValue[VARIANT_NB][PHASE_NB][PIECE_NB];
+constexpr Value PieceValue[VARIANT_NB][PHASE_NB][PIECE_NB] = {
+{
+  { VALUE_ZERO, PawnValueMg, KnightValueMg, BishopValueMg, RookValueMg, QueenValueMg, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueMg, KnightValueMg, BishopValueMg, RookValueMg, QueenValueMg, VALUE_ZERO, VALUE_ZERO },
+  { VALUE_ZERO, PawnValueEg, KnightValueEg, BishopValueEg, RookValueEg, QueenValueEg, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEg, KnightValueEg, BishopValueEg, RookValueEg, QueenValueEg, VALUE_ZERO, VALUE_ZERO }
+},
+#ifdef ANTI
+{
+  { VALUE_ZERO, PawnValueMgAnti, KnightValueMgAnti, BishopValueMgAnti, RookValueMgAnti, QueenValueMgAnti, KingValueMgAnti, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgAnti, KnightValueEgAnti, BishopValueEgAnti, RookValueEgAnti, QueenValueEgAnti, KingValueEgAnti, VALUE_ZERO },
+  { VALUE_ZERO, PawnValueMgAnti, KnightValueMgAnti, BishopValueMgAnti, RookValueMgAnti, QueenValueMgAnti, KingValueMgAnti, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgAnti, KnightValueEgAnti, BishopValueEgAnti, RookValueEgAnti, QueenValueEgAnti, KingValueEgAnti, VALUE_ZERO }
+},
+#endif
+#ifdef ATOMIC
+{
+  { VALUE_ZERO, PawnValueMgAtomic, KnightValueMgAtomic, BishopValueMgAtomic, RookValueMgAtomic, QueenValueMgAtomic, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgAtomic, KnightValueEgAtomic, BishopValueEgAtomic, RookValueEgAtomic, QueenValueEgAtomic, VALUE_ZERO, VALUE_ZERO },
+  { VALUE_ZERO, PawnValueMgAtomic, KnightValueMgAtomic, BishopValueMgAtomic, RookValueMgAtomic, QueenValueMgAtomic, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgAtomic, KnightValueEgAtomic, BishopValueEgAtomic, RookValueEgAtomic, QueenValueEgAtomic, VALUE_ZERO, VALUE_ZERO }
+},
+#endif
+#ifdef CRAZYHOUSE
+{
+  { VALUE_ZERO, PawnValueMgHouse, KnightValueMgHouse, BishopValueMgHouse, RookValueMgHouse, QueenValueMgHouse, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgHouse, KnightValueEgHouse, BishopValueEgHouse, RookValueEgHouse, QueenValueEgHouse, VALUE_ZERO, VALUE_ZERO },
+  { VALUE_ZERO, PawnValueMgHouse, KnightValueMgHouse, BishopValueMgHouse, RookValueMgHouse, QueenValueMgHouse, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgHouse, KnightValueEgHouse, BishopValueEgHouse, RookValueEgHouse, QueenValueEgHouse, VALUE_ZERO, VALUE_ZERO }
+},
+#endif
+#ifdef EXTINCTION
+{
+  { VALUE_ZERO, PawnValueMgExtinction, KnightValueMgExtinction, BishopValueMgExtinction, RookValueMgExtinction, QueenValueMgExtinction, KingValueMgExtinction, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgExtinction, KnightValueEgExtinction, BishopValueEgExtinction, RookValueEgExtinction, QueenValueEgExtinction, KingValueEgExtinction, VALUE_ZERO },
+  { VALUE_ZERO, PawnValueMgExtinction, KnightValueMgExtinction, BishopValueMgExtinction, RookValueMgExtinction, QueenValueMgExtinction, KingValueMgExtinction, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgExtinction, KnightValueEgExtinction, BishopValueEgExtinction, RookValueEgExtinction, QueenValueEgExtinction, KingValueEgExtinction, VALUE_ZERO }
+},
+#endif
+#ifdef GRID
+{
+  { VALUE_ZERO, PawnValueMgGrid, KnightValueMgGrid, BishopValueMgGrid, RookValueMgGrid, QueenValueMgGrid, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgGrid, KnightValueEgGrid, BishopValueEgGrid, RookValueEgGrid, QueenValueEgGrid, VALUE_ZERO, VALUE_ZERO },
+  { VALUE_ZERO, PawnValueMgGrid, KnightValueMgGrid, BishopValueMgGrid, RookValueMgGrid, QueenValueMgGrid, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgGrid, KnightValueEgGrid, BishopValueEgGrid, RookValueEgGrid, QueenValueEgGrid, VALUE_ZERO, VALUE_ZERO }
+},
+#endif
+#ifdef HORDE
+{
+  { VALUE_ZERO, PawnValueMgHorde, KnightValueMgHorde, BishopValueMgHorde, RookValueMgHorde, QueenValueMgHorde, KingValueMgHorde, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgHorde, KnightValueEgHorde, BishopValueEgHorde, RookValueEgHorde, QueenValueEgHorde, KingValueEgHorde, VALUE_ZERO },
+  { VALUE_ZERO, PawnValueMgHorde, KnightValueMgHorde, BishopValueMgHorde, RookValueMgHorde, QueenValueMgHorde, KingValueMgHorde, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgHorde, KnightValueEgHorde, BishopValueEgHorde, RookValueEgHorde, QueenValueEgHorde, KingValueEgHorde, VALUE_ZERO }
+},
+#endif
+#ifdef KOTH
+{
+  { VALUE_ZERO, PawnValueMgHill, KnightValueMgHill, BishopValueMgHill, RookValueMgHill, QueenValueMgHill, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgHill, KnightValueEgHill, BishopValueEgHill, RookValueEgHill, QueenValueEgHill, VALUE_ZERO, VALUE_ZERO },
+  { VALUE_ZERO, PawnValueMgHill, KnightValueMgHill, BishopValueMgHill, RookValueMgHill, QueenValueMgHill, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgHill, KnightValueEgHill, BishopValueEgHill, RookValueEgHill, QueenValueEgHill, VALUE_ZERO, VALUE_ZERO }
+},
+#endif
+#ifdef LOSERS
+{
+  { VALUE_ZERO, PawnValueMgLosers, KnightValueMgLosers, BishopValueMgLosers, RookValueMgLosers, QueenValueMgLosers, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgLosers, KnightValueEgLosers, BishopValueEgLosers, RookValueEgLosers, QueenValueEgLosers, VALUE_ZERO, VALUE_ZERO },
+  { VALUE_ZERO, PawnValueMgLosers, KnightValueMgLosers, BishopValueMgLosers, RookValueMgLosers, QueenValueMgLosers, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgLosers, KnightValueEgLosers, BishopValueEgLosers, RookValueEgLosers, QueenValueEgLosers, VALUE_ZERO, VALUE_ZERO }
+},
+#endif
+#ifdef RACE
+{
+  { VALUE_ZERO, VALUE_ZERO, KnightValueMgRace, BishopValueMgRace, RookValueMgRace, QueenValueMgRace, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, VALUE_ZERO, KnightValueEgRace, BishopValueEgRace, RookValueEgRace, QueenValueEgRace, VALUE_ZERO, VALUE_ZERO },
+  { VALUE_ZERO, VALUE_ZERO, KnightValueMgRace, BishopValueMgRace, RookValueMgRace, QueenValueMgRace, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, VALUE_ZERO, KnightValueEgRace, BishopValueEgRace, RookValueEgRace, QueenValueEgRace, VALUE_ZERO, VALUE_ZERO }
+},
+#endif
+#ifdef THREECHECK
+{
+  { VALUE_ZERO, PawnValueMgThreeCheck, KnightValueMgThreeCheck, BishopValueMgThreeCheck, RookValueMgThreeCheck, QueenValueMgThreeCheck, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgThreeCheck, KnightValueEgThreeCheck, BishopValueEgThreeCheck, RookValueEgThreeCheck, QueenValueEgThreeCheck, VALUE_ZERO, VALUE_ZERO },
+  { VALUE_ZERO, PawnValueMgThreeCheck, KnightValueMgThreeCheck, BishopValueMgThreeCheck, RookValueMgThreeCheck, QueenValueMgThreeCheck, VALUE_ZERO, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgThreeCheck, KnightValueEgThreeCheck, BishopValueEgThreeCheck, RookValueEgThreeCheck, QueenValueEgThreeCheck, VALUE_ZERO, VALUE_ZERO }
+},
+#endif
+#ifdef TWOKINGS
+{
+  { VALUE_ZERO, PawnValueMgTwoKings, KnightValueMgTwoKings, BishopValueMgTwoKings, RookValueMgTwoKings, QueenValueMgTwoKings, KingValueMgTwoKings, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgTwoKings, KnightValueEgTwoKings, BishopValueEgTwoKings, RookValueEgTwoKings, QueenValueEgTwoKings, KingValueEgTwoKings, VALUE_ZERO },
+  { VALUE_ZERO, PawnValueMgTwoKings, KnightValueMgTwoKings, BishopValueMgTwoKings, RookValueMgTwoKings, QueenValueMgTwoKings, KingValueMgTwoKings, VALUE_ZERO,
+    VALUE_ZERO, PawnValueEgTwoKings, KnightValueEgTwoKings, BishopValueEgTwoKings, RookValueEgTwoKings, QueenValueEgTwoKings, KingValueEgTwoKings, VALUE_ZERO }
+},
+#endif
+};
 
 typedef int Depth;
 
@@ -457,7 +579,7 @@ enum : int {
   DEPTH_QS_RECAPTURES = -5,
 
   DEPTH_NONE   = -6,
-  DEPTH_OFFSET = DEPTH_NONE,
+  DEPTH_OFFSET = DEPTH_NONE
 };
 
 enum Square : int {
@@ -592,23 +714,23 @@ inline Score operator*(Score s, int i) {
 
 /// Multiplication of a Score by a boolean
 inline Score operator*(Score s, bool b) {
-  return Score(int(s) * int(b));
+  return b ? s : SCORE_ZERO;
 }
 
 constexpr Color operator~(Color c) {
   return Color(c ^ BLACK); // Toggle color
 }
 
-constexpr Square operator~(Square s) {
-  return Square(s ^ SQ_A8); // Vertical flip SQ_A1 -> SQ_A8
+constexpr Square flip_rank(Square s) {
+  return Square(s ^ SQ_A8);
+}
+
+constexpr Square flip_file(Square s) {
+  return Square(s ^ SQ_H1);
 }
 
 constexpr Piece operator~(Piece pc) {
   return Piece(pc ^ 8); // Swap color of piece B_KNIGHT -> W_KNIGHT
-}
-
-inline File map_to_queenside(File f) {
-  return std::min(f, File(FILE_H - f)); // Map files ABCDEFGH to files ABCDDCBA
 }
 
 constexpr CastlingRights operator&(Color c, CastlingRights cr) {
@@ -757,6 +879,14 @@ inline Variant main_variant(Variant v) {
       return v;
   switch(v)
   {
+#ifdef ANTIHELPMATE
+  case ANTIHELPMATE_VARIANT:
+      return CHESS_VARIANT;
+#endif
+#ifdef HELPMATE
+  case HELPMATE_VARIANT:
+      return CHESS_VARIANT;
+#endif
 #ifdef GIVEAWAY
   case GIVEAWAY_VARIANT:
       return ANTI_VARIANT;
@@ -781,6 +911,14 @@ inline Variant main_variant(Variant v) {
   case PLACEMENT_VARIANT:
       return CRAZYHOUSE_VARIANT;
 #endif
+#ifdef KNIGHTRELAY
+  case KNIGHTRELAY_VARIANT:
+      return CHESS_VARIANT;
+#endif
+#ifdef RELAY
+  case RELAY_VARIANT:
+      return CHESS_VARIANT;
+#endif
 #ifdef SLIPPEDGRID
   case SLIPPEDGRID_VARIANT:
       return GRID_VARIANT;
@@ -796,3 +934,5 @@ inline Variant main_variant(Variant v) {
 }
 
 #endif // #ifndef TYPES_H_INCLUDED
+
+#include "tune.h" // Global visibility to tuning setup
