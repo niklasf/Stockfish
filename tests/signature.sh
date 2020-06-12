@@ -1,13 +1,13 @@
-#!/bin/bash
+#!/bin/bash -e
 # obtain and optionally verify Bench / signature
 # if no reference is given, the output is deliberately limited to just the signature
 
-error()
-{
-  echo "running bench for signature failed on line $1"
-  exit 1
-}
-trap 'error ${LINENO}' ERR
+#error()
+#{
+#  echo "running bench for signature failed on line $1"
+#  exit 1
+#}
+#trap 'error ${LINENO}' ERR
 
 # obtain
 
