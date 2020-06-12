@@ -11,7 +11,11 @@
 
 # obtain
 
-signature=`./stockfish bench all &>/dev/null && ./stockfish bench 2>&1 | grep "Nodes searched  : " | awk '{print $4}'`
+awk --version
+
+./stockfish bench
+
+signature=`./stockfish bench 2>&1 | grep "Nodes searched  : " | awk '{print $4}'`
 
 if [ $# -gt 0 ]; then
    # compare to given reference
