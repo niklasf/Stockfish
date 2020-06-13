@@ -13,7 +13,7 @@
 
 awk --version
 
-./stockfish bench
+./stockfish bench all
 
 signature=`./stockfish bench 2>&1 | grep "Nodes searched  : " | awk '{print $4}'`
 
