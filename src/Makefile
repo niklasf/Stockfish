@@ -169,9 +169,6 @@ ifeq ($(COMP),gcc)
 			CXXFLAGS += -m$(bits)
 			LDFLAGS += -m$(bits)
 		endif
-	else
-		CXXFLAGS += -m$(bits)
-		LDFLAGS += -m$(bits)
 	endif
 
 	ifneq ($(KERNEL),Darwin)
