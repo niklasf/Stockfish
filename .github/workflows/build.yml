@@ -24,3 +24,15 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - run: cd src && make ARCH=x86-64 profile-build
+  aarch64:
+    strategy:
+      matrix:
+        arch: ["armv7", "armv7-neon", "armv8"]
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+    - uses: uraimo/run-on-arch-action@v2.0.5
+      with:
+        arch: aarch64
+        distro: ubuntu18.04
+        run: cd src && make ARCH=${{ matrix.arch }} profile-build
