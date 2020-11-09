@@ -35,4 +35,4 @@ jobs:
       with:
         arch: aarch64
         distro: ubuntu18.04
-        run: apt-get update && apt-get install -y build-essential && cd src && make ARCH=${{ matrix.arch }} profile-build
+        run: apt-get update && apt-get install -y wget make g++ && cd src && make ARCH=${{ matrix.arch }} profile-build
