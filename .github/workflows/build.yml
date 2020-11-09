@@ -28,6 +28,7 @@ jobs:
     strategy:
       matrix:
         arch: ["armv7", "armv7-neon", "armv8"]
+      fail-fast: false
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
