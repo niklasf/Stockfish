@@ -10,7 +10,8 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
-    - run: cd src && CXXFLAGS=-DNNUE_EMBEDDING_OFF make ARCH=${{ matrix.arch }} profile-build && strip stockfish
+    - run: echo "CXXFLAGS=-DNNUE_EMBEDDING_OFF" >> $GITHUB_ENV
+    - run: cd src && make ARCH=${{ matrix.arch }} profile-build && strip stockfish
     - run: ./src/stockfish compiler
     - run: mv ./src/stockfish stockfish-${{ matrix.arch }}
     - uses: actions/upload-artifact@v2
@@ -24,7 +25,8 @@ jobs:
     runs-on: windows-2016
     steps:
     - uses: actions/checkout@v2
-    - run: cd src && CXXFLAGS=-DNNUE_EMBEDDING_OFF make ARCH=${{ matrix.arch }} profile-build && strip stockfish.exe
+    - run: echo "CXXFLAGS=-DNNUE_EMBEDDING_OFF" >> $GITHUB_ENV
+    - run: cd src && make ARCH=${{ matrix.arch }} profile-build && strip stockfish.exe
     - run: ./src/stockfish compiler
     - run: mv ./src/stockfish stockfish-${{ matrix.arch }}.exe
     - uses: actions/upload-artifact@v2
@@ -35,7 +37,8 @@ jobs:
     runs-on: macos-10.15
     steps:
     - uses: actions/checkout@v2
-    - run: cd src && CXXFLAGS=-DNNUE_EMBEDDING_OFF make ARCH=x86-64 profile-build && strip stockfish
+    - run: echo "CXXFLAGS=-DNNUE_EMBEDDING_OFF" >> $GITHUB_ENV
+    - run: cd src && make ARCH=x86-64 profile-build && strip stockfish
     - run: ./src/stockfish compiler
     - run: mv ./src/stockfish stockfish-macos-x86-64
     - uses: actions/upload-artifact@v2
