@@ -45,17 +45,17 @@ jobs:
       with:
         name: profile-build
         path: stockfish-*
-  #aarch64:
-  #  runs-on: ubuntu-18.04
-  #  steps:
-  #  - uses: actions/checkout@v2
-  #  - uses: uraimo/run-on-arch-action@v2.0.5
-  #    with:
-  #      arch: aarch64
-  #      distro: ubuntu18.04
-  #      run: apt-get update && apt-get install -y wget make g++ binutils && cd src && CXXFLAGS=-DNNUE_EMBEDDING_OFF make ARCH=armv8 profile-build && strip stockfish && ./stockfish compiler
-  #  - run: mv ./src/stockfish stockfish-armv8
-  #  - uses: actions/upload-artifact@v2
-  #    with:
-  #      name: profile-build
-  #      path: stockfish-*
+  aarch64:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+    - uses: uraimo/run-on-arch-action@v2.0.5
+      with:
+        arch: aarch64
+        distro: ubuntu18.04
+        run: apt-get update && apt-get install -y wget make g++ binutils && cd src && CXXFLAGS=-DNNUE_EMBEDDING_OFF make ARCH=armv8 profile-build && strip stockfish && ./stockfish compiler
+    - run: mv ./src/stockfish stockfish-armv8
+    - uses: actions/upload-artifact@v2
+      with:
+        name: profile-build
+        path: stockfish-*
