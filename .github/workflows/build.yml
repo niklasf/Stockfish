@@ -26,7 +26,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - run: echo "CXXFLAGS=-DNNUE_EMBEDDING_OFF" >> ${env:GITHUB_ENV}
-    - run: cd src && make ARCH=${{ matrix.arch }} profile-build && strip stockfish.exe
+    - run: cd src && make ARCH=${{ matrix.arch }} COMP=mingw profile-build && strip stockfish.exe
     - run: ./src/stockfish compiler
     - run: mv ./src/stockfish.exe stockfish-mv-${{ matrix.arch }}.exe
     - uses: actions/upload-artifact@v2
