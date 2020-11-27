@@ -191,47 +191,47 @@ using namespace Trace;
 namespace {
 
   // Threshold for lazy and space evaluation
-  constexpr Value LazyThreshold1  = Value(1400);
-  constexpr Value LazyThreshold2  = Value(1300);
+  constexpr Value LazyThreshold1 =  Value(1565);
+  constexpr Value LazyThreshold2 =  Value(1102);
   constexpr Value SpaceThreshold[VARIANT_NB] = {
-    Value(12222),
+    Value(11551),
 #ifdef ANTI
-    Value(12222),
+    Value(11551),
 #endif
 #ifdef ATOMIC
-    Value(12222),
+    Value(11551),
 #endif
 #ifdef CRAZYHOUSE
-    Value(12222),
+    Value(11551),
 #endif
 #ifdef EXTINCTION
-    Value(12222),
+    Value(11551),
 #endif
 #ifdef GRID
     2 * MidgameLimit,
 #endif
 #ifdef HORDE
-    Value(12222),
+    Value(11551),
 #endif
 #ifdef KOTH
     VALUE_ZERO,
 #endif
 #ifdef LOSERS
-    Value(12222),
+    Value(11551),
 #endif
 #ifdef RACE
-    Value(12222),
+    Value(11551),
 #endif
 #ifdef THREECHECK
-    Value(12222),
+    Value(11551),
 #endif
 #ifdef TWOKINGS
-    Value(12222),
+    Value(11551),
 #endif
   };
 #ifdef USE_NNUE
-  constexpr Value NNUEThreshold1 =   Value(550);
-  constexpr Value NNUEThreshold2 =   Value(150);
+  constexpr Value NNUEThreshold1 =   Value(682);
+  constexpr Value NNUEThreshold2 =   Value(176);
 #endif
 
   // KingAttackWeights[PieceType] contains king attack weights by piece type
@@ -1222,10 +1222,6 @@ namespace {
             kingDanger = ThreeCheckKSFactors[pos.checks_given(Them)] * kingDanger / 256;
 #endif
         int v = kingDanger * kingDanger / 4096;
-#ifdef ATOMIC
-        if (pos.is_atomic())
-            v = std::min(v, (int)QueenValueMg);
-#endif
 #ifdef CRAZYHOUSE
         if (pos.is_house() && Us == pos.side_to_move())
             v -= v / 10;
@@ -1938,7 +1934,7 @@ Value Eval::evaluate(const Position& pos) {
   {
       // Scale and shift NNUE for compatibility with search and classical evaluation
       auto  adjusted_NNUE = [&](){
-         int mat = pos.non_pawn_material() + PieceValue[CHESS_VARIANT][MG][PAWN] * pos.count<PAWN>();
+         int mat = pos.non_pawn_material() + PawnValueMg * pos.count<PAWN>();
          return NNUE::evaluate(pos) * (720 + mat / 32) / 1024 + Tempo;
       };
 
@@ -1948,16 +1944,18 @@ Value Eval::evaluate(const Position& pos) {
       bool  largePsq = psq * 16 > (NNUEThreshold1 + pos.non_pawn_material() / 64) * r50;
       bool  classical = largePsq || (psq > PawnValueMg / 4 && !(pos.this_thread()->nodes & 0xB));
 
-      v = classical ? Evaluation<NO_TRACE>(pos).value() : adjusted_NNUE();
+      bool strongClassical = pos.non_pawn_material() < 2 * RookValueMg && pos.count<PAWN>() < 2;
+
+      v = classical || strongClassical ? Evaluation<NO_TRACE>(pos).value() : adjusted_NNUE();
 
       // If the classical eval is small and imbalance large, use NNUE nevertheless.
       // For the case of opposite colored bishops, switch to NNUE eval with
       // small probability if the classical eval is less than the threshold.
-      if (   largePsq
-          && (abs(v) * 16 < NNUEThreshold2 * r50
-          || (   pos.opposite_bishops()
-              && abs(v) * 16 < (NNUEThreshold1 + pos.non_pawn_material() / 64) * r50
-              && !(pos.this_thread()->nodes & 0xB))))
+      if (   largePsq && !strongClassical
+          && (   abs(v) * 16 < NNUEThreshold2 * r50
+              || (   pos.opposite_bishops()
+                  && abs(v) * 16 < (NNUEThreshold1 + pos.non_pawn_material() / 64) * r50
+                  && !(pos.this_thread()->nodes & 0xB))))
           v = adjusted_NNUE();
   }
 #endif
