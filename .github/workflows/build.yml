@@ -70,7 +70,7 @@ jobs:
       with:
         arch: aarch64
         distro: ubuntu16.04
-        run: apt-get update && apt-get install -y software-properties-common && add-apt-repository ppa:ubuntu-toolchain-r/test && apt-get update && apt-get install -y wget make binutils g++-7 && cd src && CXXFLAGS=-DNNUE_EMBEDDING_OFF make CXX=g++-7 ARCH=armv8 profile-build && strip stockfish && ./stockfish compiler
+        run: apt-get update && apt-get install -y software-properties-common && add-apt-repository -y ppa:ubuntu-toolchain-r/test && apt-get update && apt-get install -y wget make binutils g++-7 && cd src && CXXFLAGS=-DNNUE_EMBEDDING_OFF make CXX=g++-7 ARCH=armv8 profile-build && strip stockfish && ./stockfish compiler
     - run: mv ./src/stockfish stockfish-armv8
     - uses: actions/upload-artifact@v2
       with:
