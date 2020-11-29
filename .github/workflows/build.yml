@@ -16,7 +16,7 @@ jobs:
     - run: mv ./src/stockfish stockfish-mv-${{ matrix.arch }}
     - uses: actions/upload-artifact@v2
       with:
-        name: profile-build
+        name: stockfish.zip
         path: stockfish-*
   windows:
     strategy:
@@ -31,19 +31,35 @@ jobs:
     - run: mv ./src/stockfish.exe stockfish-mv-${{ matrix.arch }}.exe
     - uses: actions/upload-artifact@v2
       with:
-        name: profile-build
+        name: stockfish.zip
         path: stockfish-*
   macos:
+    strategy:
+      matrix:
+        include:
+        - arch: x86-64-bmi2
+          build: build
+        - arch: x86-64-avx2
+          build: build
+        - arch: x86-64-sse41-popcnt
+          build: profile-build
+        - arch: x86-64-ssse3
+          build: profile-build
+        - arch: x86-64-sse3-popcnt
+          build: profile-build
+        - arch: x86-64
+          build: profile-build
     runs-on: macos-10.15
     steps:
     - uses: actions/checkout@v2
     - run: echo "CXXFLAGS=-DNNUE_EMBEDDING_OFF" >> $GITHUB_ENV
-    - run: cd src && make ARCH=x86-64 profile-build && strip stockfish
+    - run: cd src && make ARCH=${{ matrix.arch }} ${{ matrix.build }} && strip stockfish
     - run: ./src/stockfish compiler
-    - run: mv ./src/stockfish stockfish-mv-macos-x86-64
+      if: ${{ matrix.build == 'profile-build' }}
+    - run: mv ./src/stockfish stockfish-mv-macos-${{ matrix.arch }}
     - uses: actions/upload-artifact@v2
       with:
-        name: profile-build
+        name: stockfish.zip
         path: stockfish-*
   aarch64:
     runs-on: ubuntu-18.04
@@ -57,5 +73,5 @@ jobs:
     - run: mv ./src/stockfish stockfish-mv-armv8
     - uses: actions/upload-artifact@v2
       with:
-        name: profile-build
+        name: stockfish.zip
         path: stockfish-*
