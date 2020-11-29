@@ -16,7 +16,7 @@ jobs:
     - run: mv ./src/stockfish stockfish-${{ matrix.arch }}
     - uses: actions/upload-artifact@v2
       with:
-        name: stockfish.zip
+        name: stockfish
         path: stockfish-*
   windows:
     strategy:
@@ -31,7 +31,7 @@ jobs:
     - run: mv ./src/stockfish.exe stockfish-${{ matrix.arch }}.exe
     - uses: actions/upload-artifact@v2
       with:
-        name: stockfish.zip
+        name: stockfish
         path: stockfish-*
   macos:
     strategy:
@@ -59,7 +59,7 @@ jobs:
     - run: mv ./src/stockfish stockfish-macos-${{ matrix.arch }}
     - uses: actions/upload-artifact@v2
       with:
-        name: stockfish.zip
+        name: stockfish
         path: stockfish-*
   aarch64:
     runs-on: ubuntu-18.04
@@ -73,5 +73,5 @@ jobs:
     - run: mv ./src/stockfish stockfish-armv8
     - uses: actions/upload-artifact@v2
       with:
-        name: stockfish.zip
+        name: stockfish
         path: stockfish-*
