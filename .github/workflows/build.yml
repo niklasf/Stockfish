@@ -62,6 +62,17 @@ jobs:
       with:
         name: stockfish
         path: stockfish-*
+  macos-silicon:
+    runs-on: macos-11.0
+    steps:
+    - uses: actions/checkout@v2
+    - run: echo "CXXFLAGS=-DNNUE_EMBEDDING_OFF -target arm64-apple-macos11" >> $GITHUB_ENV
+    - run: cd src && make ARCH=apple-silicon build && strip stockfish
+    - run: mv ./src/stockfish stockfish-macos-aarch64
+    - uses: actions/upload-artifact@v2
+      with:
+        name: stockfish
+        path: stockfish-*
   aarch64:
     runs-on: ubuntu-16.04
     steps:
