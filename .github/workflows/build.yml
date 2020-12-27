@@ -62,7 +62,7 @@ jobs:
       with:
         name: stockfish
         path: stockfish-*
-  macos-silicon:
+  macos-aarch64:
     runs-on: macos-11.0
     steps:
     - uses: actions/checkout@v2
