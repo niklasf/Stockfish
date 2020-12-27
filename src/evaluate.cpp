@@ -274,7 +274,7 @@ namespace {
 
   // Per-variant king danger malus factors
   constexpr int KingDangerParams[VARIANT_NB][11] = {
-    {   185,  148,   98,   69,    3, -873, -100,   -6,   -4,   37,    0 },
+    {   183,  148,   98,   69,    3, -873, -100,   -6,   -4,   37,    0 },
 #ifdef ANTI
     {},
 #endif
@@ -545,7 +545,7 @@ namespace {
   // PassedRank[Rank] contains a bonus according to the rank of a passed pawn
   constexpr Score PassedRank[VARIANT_NB][RANK_NB] = {
     {
-    S(0, 0), S(9, 28), S(15, 31), S(17, 39), S(64, 70), S(171, 177), S(277, 260)
+    S(0, 0), S(7, 27), S(16, 32), S(17, 40), S(64, 71), S(170, 174), S(278, 262)
     },
 #ifdef ANTI
     { S(0, 0), S(5, 7), S(5, 14), S(31, 38), S(73, 73), S(166, 166), S(252, 252) },
@@ -583,7 +583,7 @@ namespace {
   };
 
   constexpr Score RookOnClosedFile = S(10, 5);
-  constexpr Score RookOnOpenFile[] = { S(19, 7), S(48, 27) };
+  constexpr Score RookOnOpenFile[] = { S(19, 6), S(47, 26) };
 
   // ThreatByMinor/ByRook[attacked PieceType] contains bonuses according to
   // which piece type attacks which one. Attacks on lesser pieces which are
@@ -1200,11 +1200,11 @@ namespace {
 
     const auto KDP = KingDangerParams[pos.variant()];
     kingDanger +=        kingAttackersCount[Them] * kingAttackersWeight[Them] // (~10 Elo)
-                 + KDP[0] * popcount(kingRing[Us] & weak)                        // (~15 Elo)
-                 + KDP[1] * popcount(unsafeChecks)                               // (~4 Elo)
-                 + KDP[2] * popcount(pos.blockers_for_king(Us))                  // (~2 Elo)
-                 + KDP[3] * kingAttacksCount[Them]                               // (~0.5 Elo)
-                 + KDP[4] * kingFlankAttack * kingFlankAttack / 8                // (~0.5 Elo)
+                 + KDP[0] * popcount(kingRing[Us] & weak)                     // (~15 Elo)
+                 + KDP[1] * popcount(unsafeChecks)                            // (~4 Elo)
+                 + KDP[2] * popcount(pos.blockers_for_king(Us))               // (~2 Elo)
+                 + KDP[3] * kingAttacksCount[Them]                            // (~0.5 Elo)
+                 + KDP[4] * kingFlankAttack * kingFlankAttack / 8             // (~0.5 Elo)
                  +       mg_value(mobility[Them] - mobility[Us])              // (~0.5 Elo)
                  + KDP[5] * !pos.count<QUEEN>(Them)                              // (~24 Elo)
                  + KDP[6] * bool(attackedBy[Us][KNIGHT] & attackedBy[Us][KING])  // (~5 Elo)
@@ -1553,14 +1553,16 @@ namespace {
                 bb = forward_file_bb(Them, s) & pos.pieces(ROOK, QUEEN);
 
                 if (!(pos.pieces(Them) & bb))
-                    unsafeSquares &= attackedBy[Them][ALL_PIECES];
+                    unsafeSquares &= attackedBy[Them][ALL_PIECES] | pos.pieces(Them);
 
-                // If there are no enemy attacks on passed pawn span, assign a big bonus.
+                // If there are no enemy pieces or attacks on passed pawn span, assign a big bonus.
+                // Or if there is some, but they are all attacked by our pawns, assign a bit smaller bonus.
                 // Otherwise assign a smaller bonus if the path to queen is not attacked
                 // and even smaller bonus if it is attacked but block square is not.
-                int k = !unsafeSquares                    ? 35 :
-                        !(unsafeSquares & squaresToQueen) ? 20 :
-                        !(unsafeSquares & blockSq)        ?  9 :
+                int k = !unsafeSquares                    ? 36 :
+                !(unsafeSquares & ~attackedBy[Us][PAWN])  ? 30 :
+                        !(unsafeSquares & squaresToQueen) ? 17 :
+                        !(unsafeSquares & blockSq)        ?  7 :
                                                              0 ;
 
                 // Assign a larger bonus if the block square is defended
@@ -1609,6 +1611,8 @@ namespace {
     behind |= shift<Down>(behind);
     behind |= shift<Down+Down>(behind);
 
+    // Compute space score based on the number of safe squares and number of our pieces
+    // increased with number of total blocked pawns in position.
     int bonus = popcount(safe) + popcount(behind & safe & ~attackedBy[Them][ALL_PIECES]);
     int weight = pos.count<ALL_PIECES>(Us) - 3 + std::min(pe->blocked_count(), 9);
     Score score = make_score(bonus * weight * weight / 16, 0);
@@ -1710,11 +1714,10 @@ namespace {
   template<Tracing T>
   Value Evaluation<T>::winnable(Score score) const {
 
-    int complexity = 0;
-
     bool pawnsOnBothFlanks =   (pos.pieces(PAWN) & QueenSide)
                             && (pos.pieces(PAWN) & KingSide);
 
+    int complexity = 0;
 #ifdef ANTI
     if (pos.is_anti()) {} else
 #endif
@@ -1729,7 +1732,7 @@ namespace {
 #endif
     {
     int outflanking =  distance<File>(pos.square<KING>(WHITE), pos.square<KING>(BLACK))
-                     - distance<Rank>(pos.square<KING>(WHITE), pos.square<KING>(BLACK));
+                    + int(rank_of(pos.square<KING>(WHITE)) - rank_of(pos.square<KING>(BLACK)));
 
     bool almostUnwinnable =   outflanking < 0
                            && !pawnsOnBothFlanks;
@@ -1795,24 +1798,36 @@ namespace {
     {
         if (pos.opposite_bishops())
         {
+            // For pure opposite colored bishops endgames use scale factor
+            // based on the number of passed pawns of the strong side.
             if (   pos.non_pawn_material(WHITE) == BishopValueMg
                 && pos.non_pawn_material(BLACK) == BishopValueMg)
                 sf = 18 + 4 * popcount(pe->passed_pawns(strongSide));
+            // For every other opposite colored bishops endgames use scale factor
+            // based on the number of all pieces of the strong side.
             else
                 sf = 22 + 3 * pos.count<ALL_PIECES>(strongSide);
         }
+        // For rook endgames with strong side not having overwhelming pawn number advantage
+        // and its pawns being on one flank and weak side protecting its pieces with a king
+        // use lower scale factor.
         else if (  pos.non_pawn_material(WHITE) == RookValueMg
                 && pos.non_pawn_material(BLACK) == RookValueMg
                 && pos.count<PAWN>(strongSide) - pos.count<PAWN>(~strongSide) <= 1
                 && bool(KingSide & pos.pieces(strongSide, PAWN)) != bool(QueenSide & pos.pieces(strongSide, PAWN))
                 && (attacks_bb<KING>(pos.square<KING>(~strongSide)) & pos.pieces(~strongSide, PAWN)))
             sf = 36;
+        // For queen vs no queen endgames use scale factor
+        // based on number of minors of side that doesn't have queen.
         else if (pos.count<QUEEN>() == 1)
             sf = 37 + 3 * (pos.count<QUEEN>(WHITE) == 1 ? pos.count<BISHOP>(BLACK) + pos.count<KNIGHT>(BLACK)
                                                         : pos.count<BISHOP>(WHITE) + pos.count<KNIGHT>(WHITE));
+        // In every other case use scale factor based on
+        // the number of pawns of the strong side reduced if pawns are on a single flank.
         else
             sf = std::min(sf, 36 + 7 * pos.count<PAWN>(strongSide)) - 4 * !pawnsOnBothFlanks;
 
+        // Reduce scale factor in case of pawns being on a single flank
         sf -= 4 * !pawnsOnBothFlanks;
     }
 
@@ -1946,6 +1961,8 @@ Value Eval::evaluate(const Position& pos) {
       bool  largePsq = psq * 16 > (NNUEThreshold1 + pos.non_pawn_material() / 64) * r50;
       bool  classical = largePsq || (psq > PawnValueMg / 4 && !(pos.this_thread()->nodes & 0xB));
 
+      // Use classical evaluation for really low piece endgames.
+      // The most critical case is a bishop + A/H file pawn vs naked king draw.
       bool strongClassical = pos.non_pawn_material() < 2 * RookValueMg && pos.count<PAWN>() < 2;
 
       v = classical || strongClassical ? Evaluation<NO_TRACE>(pos).value() : adjusted_NNUE();
