@@ -71,7 +71,7 @@ jobs:
     - run: mv ./src/stockfish stockfish-macos-aarch64
     - uses: actions/upload-artifact@v2
       with:
-        name: stockfish
+        name: stockfish-mv
         path: stockfish-*
   aarch64:
     runs-on: ubuntu-16.04
