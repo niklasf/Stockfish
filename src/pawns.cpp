@@ -1,6 +1,6 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
-  Copyright (C) 2004-2020 The Stockfish developers (see AUTHORS file)
+  Copyright (C) 2004-2021 The Stockfish developers (see AUTHORS file)
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -30,11 +30,11 @@ namespace {
   #define S(mg, eg) make_score(mg, eg)
 
   // Pawn penalties
-  constexpr Score Backward      = S( 8, 25);
-  constexpr Score Doubled       = S(10, 55);
-  constexpr Score Isolated      = S( 3, 15);
-  constexpr Score WeakLever     = S( 3, 55);
-  constexpr Score WeakUnopposed = S(13, 25);
+  constexpr Score Backward      = S( 6, 23);
+  constexpr Score Doubled       = S(13, 53);
+  constexpr Score Isolated      = S( 2, 15);
+  constexpr Score WeakLever     = S( 5, 57);
+  constexpr Score WeakUnopposed = S(16, 22);
 
   // Bonus for blocked pawns at 5th or 6th rank
   constexpr Score BlockedPawn[2] = { S(-15, -3), S(-6, 3) };
@@ -69,8 +69,8 @@ namespace {
 
   // KingOnFile[semi-open Us][semi-open Them] contains bonuses/penalties
   // for king when the king is on a semi-open or open file.
-  constexpr Score KingOnFile[2][2] = {{ S(-19,12), S(-6, 7)  },
-                                     {  S(  0, 2), S( 6,-5) }};
+  constexpr Score KingOnFile[2][2] = {{ S(-21,10), S(-7, 1)  },
+                                     {  S(  0,-3), S( 9,-4) }};
 
   #undef S
   #undef V
@@ -172,7 +172,7 @@ namespace {
 
         else if (backward)
             score -=  Backward
-                    + WeakUnopposed * !opposed;
+                    + WeakUnopposed * !opposed * bool(~(FileABB | FileHBB) & s);
 
         if (!support)
             score -=  Doubled * doubled
