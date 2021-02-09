@@ -13,7 +13,7 @@ jobs:
     - uses: vmactions/freebsd-vm@v0.1.2
       with:
         usesh: true
-        run: pkg install -y gcc gmake curl && cd src && CXXFLAGS=-DNNUE_EMBEDDING_OFF gmake ARCH=${{ matrix.arch }} profile-build && strip stockfish && ./stockfish compiler
+        run: pkg install -y gmake curl && cd src && CXXFLAGS=-DNNUE_EMBEDDING_OFF gmake ARCH=${{ matrix.arch }} COMP=clang profile-build && strip stockfish && ./stockfish compiler
     - run: mv ./src/stockfish stockfish-freebsd-${{ matrix.arch }}
     - uses: actions/upload-artifact@v2
       with:
