@@ -17,7 +17,7 @@ jobs:
             build: profile-build
           - arch: x86-64-sse3-popcnt
             build: profile-build
-          - arch: x86-64:
+          - arch: x86-64
             build: profile-build
     runs-on: macos-latest
     steps:
