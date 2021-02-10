@@ -22,7 +22,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: vmactions/freebsd-vm@v0.1.2
+      - uses: niklasf/freebsd-vm@main
         with:
           run: pkg install -y gmake curl && cd src && env CXXFLAGS=-DNNUE_EMBEDDING_OFF gmake ARCH=${{ matrix.arch }} COMP=clang ${{ matrix.build }} && strip stockfish
       - run: mv ./src/stockfish stockfish-freebsd-${{ matrix.arch }}
