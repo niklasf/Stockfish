@@ -1,0 +1,105 @@
+name: CI
+on: [push]
+jobs:
+  lint:
+    runs-on: ubuntu-20.04
+    defaults:
+      run:
+        working-directory: src/emscripten
+    steps:
+      - uses: actions/checkout@v2
+      - run: npm install prettier
+      - run: npm run format:check
+      - run: npm run shellcheck
+
+  test:
+    runs-on: ubuntu-20.04
+    defaults:
+      run:
+        working-directory: src/emscripten
+    strategy:
+      matrix:
+        wasm_simd: ['yes', 'no']
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - run: docker-compose pull
+
+      - name: Extract bench signature from git log
+        run: echo "sign_ref=$(bash misc/git-log-bench-signature.sh)" >> $GITHUB_ENV
+
+      - name: Build Stockfish
+        run: >
+          DOCKER_USER=$(id -u):$(id -g) docker-compose run emscripten
+          make -C .. emscripten_build ARCH=wasm wasm_simd=${{ matrix.wasm_simd }}
+
+      - name: Test bench signature (Node)
+        run: >
+          docker-compose run -e uci_exe="node public/uci.js" -e sign_ref=${{ env.sign_ref }} node
+          bash tests/bench-signature.sh
+
+      - name: Test bench NPS (Node)
+        if: ${{ matrix.wasm_simd == 'yes' }}
+        run: >
+          docker-compose run -e uci_exe="node public/uci.js" node
+          bash tests/bench-nps.sh
+
+      - name: Run server for headless testing
+        run: npm install serve && (npm run serve & sleep 5)
+
+      - name: Test bench signature (Browser)
+        run: >
+          docker-compose run -e uci_exe="node public/uci-puppeteer.js" -e sign_ref=${{ env.sign_ref }} browser
+          bash tests/bench-signature.sh
+
+      - name: Test bench NPS (Browser)
+        if: ${{ matrix.wasm_simd == 'yes' }}
+        run: >
+          docker-compose run -e uci_exe="node public/uci-puppeteer.js" -e nps_target=250000 browser
+          bash tests/bench-nps.sh
+
+      - name: Test stress (Node)
+        if: ${{ matrix.wasm_simd == 'yes' }}
+        run: >
+          docker-compose run -e uci_exe="node public/uci.js" -e n=30 node
+          bash tests/stress.sh
+
+      - name: Test stress (Browser)
+        if: ${{ matrix.wasm_simd == 'yes' }}
+        run: >
+          docker-compose run -e uci_exe="node public/uci-puppeteer.js" -e n=15 browser
+          bash tests/stress.sh
+
+  test-no-embedded-nnue:
+    runs-on: ubuntu-20.04
+    defaults:
+      run:
+        working-directory: src/emscripten
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - run: docker-compose pull emscripten node
+
+      - name: Extract bench signature from git log
+        run: echo "sign_ref=$(bash misc/git-log-bench-signature.sh)" >> $GITHUB_ENV
+
+      - name: Extract default net name
+        run: echo "default_net=$(make -C .. net | grep "Default net" | awk '{ print $NF }')" >> $GITHUB_ENV
+
+      - name: Build Stockfish
+        run: >
+          DOCKER_USER=$(id -u):$(id -g) docker-compose run emscripten
+          make -C .. emscripten_build ARCH=wasm embedded_nnue=no
+
+      - name: Verify stockfish.wasm < 1MB
+        run: >
+          [ $(wc -c public/stockfish.wasm | awk '{ print $1 }') -lt 1000000 ]
+
+      - name: Test bench signature (Node)
+        run: >
+          docker-compose run -e uci_exe="node public/uci.js" -e sign_ref=${{ env.sign_ref }} -e UCI_NNUE_FILE="../${{ env.default_net }}" node
+          bash tests/bench-signature.sh

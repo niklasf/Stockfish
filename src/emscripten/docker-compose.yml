@@ -1,0 +1,32 @@
+version: "3.7"
+
+services:
+  # https://github.com/emscripten-core/emsdk/blob/main/docker/README.md
+  emscripten:
+    image: emscripten/emsdk:2.0.26
+    # Allow writing to host filesystem as non-root
+    user: ${DOCKER_USER:-1000:1000}
+    working_dir: /app/src/emscripten
+    volumes:
+      - ../..:/app
+      - emscripten-cache:/emsdk/upstream/emscripten/cache
+
+  node:
+    image: node:16.5.0-buster
+    working_dir: /app/src/emscripten
+    volumes:
+      - ../..:/app
+
+  # Chromium 92.0.4512.0
+  # cf. https://github.com/puppeteer/puppeteer/blob/v10.0.0/src/revisions.ts
+  #     https://storage.googleapis.com/chromium-find-releases-static/index.html#r884014
+  browser:
+    image: buildkite/puppeteer:10.0.0
+    # Allow accessing host network as localhost, which is required for WASM-enabling security header to work
+    network_mode: host
+    working_dir: /app/src/emscripten
+    volumes:
+      - ../..:/app
+
+volumes:
+  emscripten-cache:

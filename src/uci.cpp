@@ -32,6 +32,11 @@
 #include "uci.h"
 #include "syzygy/tbprobe.h"
 
+#ifdef __EMSCRIPTEN__
+#include "emscripten/utils.h"
+#include "emscripten/misc/timeit.hpp"
+#endif
+
 using namespace std;
 
 namespace Stockfish {
@@ -219,6 +224,13 @@ namespace {
      return int(0.5 + 1000 / (1 + std::exp((a - x) / b)));
   }
 
+  #ifdef __EMSCRIPTEN__
+  void bench_eval(Position& pos) {
+    auto res = timeit::timeit([&]() { return Eval::evaluate(pos); });
+    std::cout << res << std::endl;
+  }
+  #endif
+
 } // namespace
 
 
@@ -240,8 +252,13 @@ void UCI::loop(int argc, char* argv[]) {
       cmd += std::string(argv[i]) + " ";
 
   do {
+      #ifdef __EMSCRIPTEN__
+      argc = 1;
+      emscripten_utils_getline(cmd);
+      #else
       if (argc == 1 && !getline(cin, cmd)) // Block here waiting for input or EOF
           cmd = "quit";
+      #endif
 
       istringstream is(cmd);
 
@@ -285,10 +302,18 @@ void UCI::loop(int argc, char* argv[]) {
               filename = f;
           Eval::NNUE::save_eval(filename);
       }
+      #ifdef __EMSCRIPTEN__
+      else if (token == "bench_eval") bench_eval(pos);
+      #endif
       else if (!token.empty() && token[0] != '#')
           sync_cout << "Unknown command: " << cmd << sync_endl;
 
   } while (token != "quit" && argc == 1); // Command line args are one-shot
+
+  #ifdef __EMSCRIPTEN__
+  // TODO: Ideally, we should send message to foreground and terminate gracefully from there
+  emscripten_force_exit(0);
+  #endif
 }
 
 
