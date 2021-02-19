@@ -361,7 +361,7 @@ namespace {
 
     static_assert(Type != LEGAL, "Unsupported type in generate_all()");
 
-    constexpr bool Checks = Type == QUIET_CHECKS; // Reduce template instantations
+    constexpr bool Checks = Type == QUIET_CHECKS; // Reduce template instantiations
     Bitboard target, piecesToMove = pos.pieces(Us);
 
     if(Type == QUIET_CHECKS)
@@ -517,7 +517,7 @@ namespace {
 
 
 /// <CAPTURES>     Generates all pseudo-legal captures plus queen and checking knight promotions
-/// <QUIETS>       Generates all pseudo-legal non-captures and underpromotions(except checking knight)
+/// <QUIETS>       Generates all pseudo-legal non-captures and underpromotions (except checking knight)
 /// <NON_EVASIONS> Generates all pseudo-legal captures and non-captures
 ///
 /// Returns a pointer to the end of the move list.
@@ -604,8 +604,8 @@ template ExtMove* generate<QUIETS>(const Position&, ExtMove*);
 template ExtMove* generate<NON_EVASIONS>(const Position&, ExtMove*);
 
 
-/// generate<QUIET_CHECKS> generates all pseudo-legal non-captures.
-/// Returns a pointer to the end of the move list.
+/// generate<QUIET_CHECKS> generates all pseudo-legal non-captures giving check,
+/// except castling. Returns a pointer to the end of the move list.
 template<>
 ExtMove* generate<QUIET_CHECKS>(const Position& pos, ExtMove* moveList) {
 
@@ -871,7 +871,7 @@ ExtMove* generate<LEGAL>(const Position& pos, ExtMove* moveList) {
 
   Color us = pos.side_to_move();
   Bitboard pinned = pos.blockers_for_king(us) & pos.pieces(us);
-  bool validate = pinned;
+  bool validate = false;
 #ifdef GRID
   if (pos.is_grid()) validate = true;
 #endif
@@ -901,22 +901,28 @@ ExtMove* generate<LEGAL>(const Position& pos, ExtMove* moveList) {
   moveList = pos.checkers() ? generate<EVASIONS    >(pos, moveList)
                             : generate<NON_EVASIONS>(pos, moveList);
   while (cur != moveList)
-      if (   (validate || from_sq(*cur) == ksq || type_of(*cur) == EN_PASSANT)
+  {
+      bool illegal;
 #ifdef CRAZYHOUSE
-#ifdef PLACEMENT
-          && !(pos.is_house() && !pos.is_placement() && type_of(*cur) == DROP)
-#else
-          && !(pos.is_house() && type_of(*cur) == DROP)
+      // Move validation is not designed to handle drop moves (from undefined)
+      if (type_of(*cur) == DROP)
+          // Protect against drop moves being generated for other variants
+          // This validation has been defined for years, but seems unnecessary
+          // since the move generator never caches moves nor leaks this list
+          illegal = !pos.is_house();
+      else
 #endif
-#endif
-          && !pos.legal(*cur))
-          *cur = (--moveList)->move;
+      illegal =  (validate
 #ifdef ATOMIC
-      else if (pos.is_atomic() && pos.capture(*cur) && !pos.legal(*cur))
-          *cur = (--moveList)->move;
+                  || (pos.is_atomic() && pos.capture(*cur))
 #endif
+                  || (pinned && pinned & from_sq(*cur)) || from_sq(*cur) == ksq || type_of(*cur) == EN_PASSANT)
+               && !pos.legal(*cur);
+      if (illegal)
+          *cur = (--moveList)->move;
       else
           ++cur;
+  }
 
   return moveList;
 }

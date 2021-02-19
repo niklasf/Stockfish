@@ -344,6 +344,8 @@ Position& Position::set(const string& fenStr, bool isChess960, Variant v, StateI
           set_castling_right(c, ksq, rsq);
   }
 
+  set_state(st);
+
   // 4. En passant square.
   // Ignore if square is invalid or not on side to move relative rank 6.
   bool enpassant = false;
@@ -357,16 +359,29 @@ Position& Position::set(const string& fenStr, bool isChess960, Variant v, StateI
       // a) side to move have a pawn threatening epSquare
       // b) there is an enemy pawn in front of epSquare
       // c) there is no piece on epSquare or behind epSquare
-      enpassant = pawn_attacks_bb(~sideToMove, st->epSquare) & pieces(sideToMove, PAWN)
-               && (pieces(~sideToMove, PAWN) & (st->epSquare + pawn_push(~sideToMove)))
-               && !(pieces() & (st->epSquare | (st->epSquare + pawn_push(sideToMove))));
+      // d) enemy pawn didn't block a check of its own color by moving forward
 #ifdef ATOMIC
       if (is_atomic() && (attacks_bb(KING, st->epSquare, 0) & square<KING>(sideToMove)))
           enpassant = false;
+      else
 #endif
+      enpassant = pawn_attacks_bb(~sideToMove, st->epSquare) & pieces(sideToMove, PAWN)
+               && (pieces(~sideToMove, PAWN) & (st->epSquare + pawn_push(~sideToMove)))
+               && !(pieces() & (st->epSquare | (st->epSquare + pawn_push(sideToMove))))
+               && (   file_of(square<KING>(sideToMove)) == file_of(st->epSquare)
+                   || !(blockers_for_king(sideToMove) & (st->epSquare + pawn_push(~sideToMove))));
   }
 
-  if (!enpassant)
+  // It's necessary for st->previous to be intialized in this way because legality check relies on its existence
+  if (enpassant) {
+      st->previous = new StateInfo();
+      remove_piece(st->epSquare - pawn_push(sideToMove));
+      st->previous->checkersBB = attackers_to(square<KING>(~sideToMove)) & pieces(sideToMove);
+      st->previous->blockersForKing[WHITE] = slider_blockers(pieces(BLACK), square<KING>(WHITE), st->previous->pinners[BLACK]);
+      st->previous->blockersForKing[BLACK] = slider_blockers(pieces(WHITE), square<KING>(BLACK), st->previous->pinners[WHITE]);
+      put_piece(make_piece(~sideToMove, PAWN), st->epSquare - pawn_push(sideToMove));
+  }
+  else
       st->epSquare = SQ_NONE;
 
 #ifdef THREECHECK
@@ -406,7 +421,6 @@ Position& Position::set(const string& fenStr, bool isChess960, Variant v, StateI
 
   chess960 = isChess960;
   thisThread = th;
-  set_state(st);
 #ifdef USE_NNUE
   st->accumulator.state[WHITE] = Eval::NNUE::INIT;
   st->accumulator.state[BLACK] = Eval::NNUE::INIT;
@@ -972,35 +986,24 @@ bool Position::legal(Move m) const {
   }
 #endif
 
-  // En passant captures are a tricky special case. Because they are rather
-  // uncommon, we do it simply by testing whether the king is attacked after
-  // the move is made.
+  // st->previous->blockersForKing consider capsq as empty.
+  // If pinned, it has to move along the king ray.
   if (type_of(m) == EN_PASSANT)
   {
-      Square ksq = square<KING>(us);
-      Square capsq = to - pawn_push(us);
-      Bitboard occupied = (pieces() ^ from ^ capsq) | to;
-
-      assert(to == ep_square());
-      assert(moved_piece(m) == make_piece(us, PAWN));
-      assert(piece_on(capsq) == make_piece(~us, PAWN));
-      assert(piece_on(to) == NO_PIECE);
-
-#ifdef GRID
-      if (is_grid())
-          return   !(attacks_bb<  ROOK>(ksq, occupied) & pieces(~us, QUEEN, ROOK) & ~grid_bb(ksq))
-                && !(attacks_bb<BISHOP>(ksq, occupied) & pieces(~us, QUEEN, BISHOP) & ~grid_bb(ksq));
-#endif
 #ifdef KNIGHTRELAY
       if (is_knight_relay())
           return false;
 #endif
 #ifdef RELAY
-      if (is_relay() && relayed_attackers_to<BISHOP, QUEEN>(ksq, ~us, occupied))
-          return false;
+      if (is_relay())
+      {
+          Bitboard occupied = (pieces() ^ from ^ (to - pawn_push(us))) | to;
+          if (relayed_attackers_to<BISHOP, QUEEN>(square<KING>(us), ~us, occupied))
+              return false;
+      }
 #endif
-      return   !(attacks_bb<  ROOK>(ksq, occupied) & pieces(~us, QUEEN, ROOK))
-            && !(attacks_bb<BISHOP>(ksq, occupied) & pieces(~us, QUEEN, BISHOP));
+      return   !(st->previous->blockersForKing[sideToMove] & from)
+            || aligned(from, to, square<KING>(us));
   }
 
   // Castling moves generation does not check if the castling path is clear of
@@ -1037,14 +1040,13 @@ bool Position::legal(Move m) const {
       }
 #endif
 
-      // In case of Chess960, verify that when moving the castling rook we do
-      // not discover some hidden checker.
+      // In case of Chess960, verify if the Rook blocks some checks
       // For instance an enemy queen in SQ_A1 when castling rook is in SQ_B1.
       return   !chess960
 #ifdef ATOMIC
             ||  (is_atomic() && kings_adjacent(m))
 #endif
-            || !(attacks_bb<ROOK>(to, pieces() ^ to_sq(m)) & pieces(~us, ROOK, QUEEN));
+            || !(blockers_for_king(us) & to_sq(m));
   }
 
   // If the moving piece is a king, check whether the destination square is
@@ -1085,8 +1087,8 @@ bool Position::legal(Move m) const {
   if (is_relay() && relayed_attackers_to<BISHOP, QUEEN>(square<KING>(us), ~us, pieces() ^ from))
       return false;
 #endif
-  return   !(blockers_for_king(us) & from)
-        ||  aligned(from, to, square<KING>(us));
+  return !(blockers_for_king(us) & from)
+      || aligned(from, to, square<KING>(us));
 }
 
 
@@ -1157,12 +1159,14 @@ bool Position::pseudo_legal(const Move m) const {
 #endif
 
   // Use a slower but simpler function for uncommon cases
+  // yet we skip the legality check of MoveList<LEGAL>().
 #ifdef CRAZYHOUSE
   if (type_of(m) != NORMAL && type_of(m) != DROP)
 #else
   if (type_of(m) != NORMAL)
 #endif
-      return MoveList<LEGAL>(*this).contains(m);
+      return checkers() ? MoveList<    EVASIONS>(*this).contains(m)
+                        : MoveList<NON_EVASIONS>(*this).contains(m);
 
   // Is not a promotion, so promotion piece must be empty
 #ifdef CRAZYHOUSE
@@ -1383,41 +1387,29 @@ bool Position::gives_check(Move m) const {
 #endif
       return attacks_bb(promotion_type(m), to, pieces() ^ from) & square<KING>(~sideToMove);
 
-  // En passant capture with check? We have already handled the case
-  // of direct checks and ordinary discovered check, so the only case we
-  // need to handle is the unusual case of a discovered check through
-  // the captured pawn.
+  // The double-pushed pawn blocked a check? En Passant will remove the blocker.
+  // The only discovery check that wasn't handle is through capsq and fromsq
+  // So the King must be in the same rank as fromsq to consider this possibility.
+  // st->previous->blockersForKing consider capsq as empty.
   case EN_PASSANT:
+      return st->previous->checkersBB
+          || (   rank_of(square<KING>(~sideToMove)) == rank_of(from)
+              && st->previous->blockersForKing[~sideToMove] & from);
+
+  default: //CASTLING
   {
-      Square capsq = make_square(file_of(to), rank_of(from));
-      Bitboard b = (pieces() ^ from ^ capsq) | to;
+      // Castling is encoded as 'king captures the rook'
+      Square ksq = square<KING>(~sideToMove);
+      Square rto = relative_square(sideToMove, to > from ? SQ_F1 : SQ_D1);
 
 #ifdef GRID
       if (is_grid())
-          return ((attacks_bb<  ROOK>(square<KING>(~sideToMove), b) & pieces(sideToMove, QUEEN, ROOK))
-                | (attacks_bb<BISHOP>(square<KING>(~sideToMove), b) & pieces(sideToMove, QUEEN, BISHOP))) & ~grid_bb(square<KING>(~sideToMove));
+          return   (attacks_bb<ROOK>(rto) & ksq & ~grid_bb(rto))
+                && (attacks_bb<ROOK>(rto, pieces() ^ from ^ to) & ksq);
 #endif
-      return  (attacks_bb<  ROOK>(square<KING>(~sideToMove), b) & pieces(sideToMove, QUEEN, ROOK))
-            | (attacks_bb<BISHOP>(square<KING>(~sideToMove), b) & pieces(sideToMove, QUEEN, BISHOP));
+      return   (attacks_bb<ROOK>(rto) & ksq)
+            && (attacks_bb<ROOK>(rto, pieces() ^ from ^ to) & ksq);
   }
-  case CASTLING:
-  {
-      Square kfrom = from;
-      Square rfrom = to; // Castling is encoded as 'king captures the rook'
-      Square kto = relative_square(sideToMove, rfrom > kfrom ? SQ_G1 : SQ_C1);
-      Square rto = relative_square(sideToMove, rfrom > kfrom ? SQ_F1 : SQ_D1);
-
-#ifdef GRID
-      if (is_grid())
-          return   (PseudoAttacks[ROOK][rto] & square<KING>(~sideToMove) & ~grid_bb(rto))
-                && (attacks_bb<ROOK>(rto, (pieces() ^ kfrom ^ rfrom) | rto | kto) & square<KING>(~sideToMove));
-#endif
-      return   (attacks_bb<ROOK>(rto) & square<KING>(~sideToMove))
-            && (attacks_bb<ROOK>(rto, (pieces() ^ kfrom ^ rfrom) | rto | kto) & square<KING>(~sideToMove));
-  }
-  default:
-      assert(false);
-      return false;
   }
 }
 
@@ -2105,7 +2097,7 @@ void Position::do_null_move(StateInfo& newSt) {
   }
 
   st->key ^= Zobrist::side;
-  prefetch(TT.first_entry(st->key));
+  prefetch(TT.first_entry(key()));
 
   ++st->rule50;
   st->pliesFromNull = 0;
@@ -2221,7 +2213,7 @@ bool Position::see_ge(Move m, Value threshold) const {
       return true;
 #endif
 
-  // Only deal with normal moves, assume others pass a simple see
+  // Only deal with normal moves, assume others pass a simple SEE
 #ifdef CRAZYHOUSE
   if (is_house() && type_of(m) == DROP) {} else
 #endif
