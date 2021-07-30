@@ -1,7 +1,7 @@
 ## Prerequisites
 
 ```
-# Enable emscripten tools
+# Enable emscripten tools (note that emsdk might overwrite default `node` path)
 $ source <path-to-emsdk-repo>/emsdk_env.sh
 
 # Set working directory to src/emscripten
@@ -60,7 +60,7 @@ $ docker-compose run browser bash
 
 ## Testing
 
-Cf. `.github/workflows/ci.yml`
+See `.github/workflows/ci.yml`
 
 ```
 $ UCI_EXE="node public/uci.js"           bash tests/bench-nps.sh
@@ -96,4 +96,5 @@ $ npm publish ./public
   - Many emscripten related patches are originally from niklasf's port
 
 - https://github.com/ornicar/lila
-  - Client side analysis integration code is found at [`ui/ceval`](https://github.com/ornicar/lila/blob/master/ui/ceval/src/ctrl.ts).
+
+  - Lichess's client side analysis integration code is found at [`ui/ceval`](https://github.com/ornicar/lila/blob/master/ui/ceval/src/ctrl.ts).

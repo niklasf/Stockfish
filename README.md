@@ -7,9 +7,20 @@ WebAssembly port of [Stockfish](https://github.com/official-stockfish/Stockfish)
 
 For development, see [`src/emscripten/README.md`](src/emscripten/README.md).
 
-Current default branch is `emscripten-237ed1ef-2.0.26`. See [here](https://github.com/hi-ogawa/Stockfish/wiki/Branch-policy) for the detail about the branch policy of this repository.
+There are two separate repositories used for additinal testing:
 
-The original `README.md` follows below.
+- [stockfish-nnue-wasm-demo](https://github.com/hi-ogawa/stockfish-nnue-wasm-demo):
+  frontend examples, including source code for https://stockfish-nnue-wasm.vercel.app
+
+- [stockfish-nnue-wasm-match](https://github.com/hi-ogawa/stockfish-nnue-wasm-demo):
+  engine match testing scripts and match results
+
+Current default branch is `emscripten-237ed1ef-2.0.26`.
+See [here](https://github.com/hi-ogawa/Stockfish/wiki/Branch-policy) for the detail about the branch policy of this repository.
+
+---
+
+The original `README.md` from the upstream continues from here.
 
 ## Overview
 
