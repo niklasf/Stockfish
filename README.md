@@ -12,7 +12,7 @@ There are two separate repositories used for additinal testing:
 - [stockfish-nnue-wasm-demo](https://github.com/hi-ogawa/stockfish-nnue-wasm-demo):
   frontend examples, including source code for https://stockfish-nnue-wasm.vercel.app
 
-- [stockfish-nnue-wasm-match](https://github.com/hi-ogawa/stockfish-nnue-wasm-demo):
+- [stockfish-nnue-wasm-match](https://github.com/hi-ogawa/stockfish-nnue-wasm-match):
   engine match testing scripts and match results
 
 Current default branch is `emscripten-237ed1ef-2.0.26`.
