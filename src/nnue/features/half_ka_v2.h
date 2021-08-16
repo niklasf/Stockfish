@@ -62,8 +62,19 @@ namespace Stockfish::Eval::NNUE::Features {
         PS_NONE, PS_W_PAWN, PS_W_KNIGHT, PS_W_BISHOP, PS_W_ROOK, PS_W_QUEEN, PS_KING, PS_NONE }
     };
 
+    static constexpr int KingBuckets[64] = {
+      -1, -1, -1, -1, 3, 2, 1, 0,
+      -1, -1, -1, -1, 7, 6, 5, 4,
+      -1, -1, -1, -1, 9, 9, 8, 8,
+      -1, -1, -1, -1, 11, 11, 10, 10,
+      -1, -1, -1, -1, 13, 13, 12, 12,
+      -1, -1, -1, -1, 13, 13, 12, 12,
+      -1, -1, -1, -1, 15, 15, 14, 14,
+      -1, -1, -1, -1, 15, 15, 14, 14
+    };
+
     // Orient a square according to perspective (rotates by 180 for black)
-    static Square orient(Color perspective, Square s);
+    static Square orient(Color perspective, Square s, Square ksq);
 
     // Index of a feature for a given king position and another piece on some square
     static IndexType make_index(Color perspective, Square s, Piece pc, Square ksq);
@@ -73,11 +84,11 @@ namespace Stockfish::Eval::NNUE::Features {
     static constexpr const char* Name = "HalfKAv2(Friend)";
 
     // Hash value embedded in the evaluation file
-    static constexpr std::uint32_t HashValue = 0x5f234cb8u;
+    static constexpr std::uint32_t HashValue = 0x7f164cb8u;
 
     // Number of feature dimensions
     static constexpr IndexType Dimensions =
-        static_cast<IndexType>(SQUARE_NB) * static_cast<IndexType>(PS_NB);
+        static_cast<IndexType>(SQUARE_NB) * static_cast<IndexType>(PS_NB) / 4;
 
     // Maximum number of simultaneously active features.
     static constexpr IndexType MaxActiveDimensions = 32;
