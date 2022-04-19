@@ -692,9 +692,11 @@ ifeq ($(debug), no)
 # To use LTO and static linking on Windows,
 # the tool chain requires gcc version 10.1 or later.
 	else ifeq ($(comp),mingw)
+	ifeq ($(KERNEL),Linux)
 	ifneq ($(arch),i386)
 		CXXFLAGS += -flto
 		LDFLAGS += $(CXXFLAGS) -save-temps
+	endif
 	endif
 	endif
 endif
