@@ -663,6 +663,10 @@ ifneq ($(comp),mingw)
 	endif
 endif
 
+#ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
+#	CXXFLAGS += -DUSE_COMPTIME_ATTACKS
+#endif
+
 ### 3.2.1 Debugging
 ifeq ($(debug),no)
 	CXXFLAGS += -DNDEBUG
@@ -838,7 +842,7 @@ endif
 ifeq ($(pext),yes)
 	CXXFLAGS += -DUSE_PEXT
 	ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
-		CXXFLAGS += -mbmi2 -DUSE_COMPTIME_ATTACKS
+		CXXFLAGS += -mbmi2
 	endif
 endif
 

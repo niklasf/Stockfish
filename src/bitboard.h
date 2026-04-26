@@ -78,36 +78,27 @@ extern Bitboard RayPassBB[SQUARE_NB][SQUARE_NB];
 struct Magic {
     Bitboard mask;
 #ifdef USE_PEXT
-    uint16_t* attacks;
-    Bitboard  pseudoAttacks;
-#else
-    Bitboard* attacks;
-    Bitboard  magic;
-    unsigned  shift;
-#endif
+    using AttackData = uint16_t;
+    AttackData* attacks;
+    Bitboard    pseudoAttacks;
 
-    // Compute the attack's index using the 'magic bitboards' approach
-    unsigned index(Bitboard occupied) const {
-
-#ifdef USE_PEXT
-        return unsigned(pext(occupied, mask));
-#else
-        if (Is64Bit)
-            return unsigned(((occupied & mask) * magic) >> shift);
-
-        unsigned lo = unsigned(occupied) & unsigned(mask);
-        unsigned hi = unsigned(occupied >> 32) & unsigned(mask >> 32);
-        return (lo * unsigned(magic) ^ hi * unsigned(magic >> 32)) >> shift;
-#endif
-    }
-
+    template<PieceType Pt>
     Bitboard attacks_bb(Bitboard occupied) const {
-#ifdef USE_PEXT
-        return pdep(attacks[index(occupied)], pseudoAttacks);
-#else
-        return attacks[index(occupied)];
-#endif
+        unsigned index = pext(occupied, mask);
+        return pdep(attacks[index], pseudoAttacks);
     }
+#else
+    using AttackData = Bitboard;
+    uint64_t    magic;
+    AttackData* attacks;
+
+    template<PieceType Pt>
+    Bitboard attacks_bb(Bitboard occupied) const {
+        constexpr int shift = 64 - (Pt == ROOK ? 12 : 9);
+        unsigned      index = ((occupied & mask) * magic) >> shift;
+        return attacks[index];
+    }
+#endif
 };
 
 extern Magic Magics[SQUARE_NB][2];
@@ -454,7 +445,7 @@ inline Bitboard attacks_bb(Square s, Bitboard occupied) {
     {
     case BISHOP :
     case ROOK :
-        return Magics[s][Pt - BISHOP].attacks_bb(occupied);
+        return Magics[s][Pt - BISHOP].attacks_bb<Pt>(occupied);
     case QUEEN :
         return attacks_bb<BISHOP>(s, occupied) | attacks_bb<ROOK>(s, occupied);
     default :

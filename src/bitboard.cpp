@@ -35,12 +35,6 @@ Bitboard RayPassBB[SQUARE_NB][SQUARE_NB];
 
 alignas(64) Magic Magics[SQUARE_NB][2];
 
-#ifdef USE_PEXT
-using MagicMask = uint16_t;
-#else
-using MagicMask = Bitboard;
-#endif
-
 // Returns an ASCII representation of a bitboard suitable
 // to be printed to standard output. Useful for debugging.
 std::string Bitboards::pretty(Bitboard b) {
@@ -63,6 +57,150 @@ std::string Bitboards::pretty(Bitboard b) {
 }
 
 namespace {
+
+struct KnownMagic {
+    uint64_t magic;
+    unsigned offset;
+};
+
+// Fixed shift white magics found by Volker Annuss.
+// From: http://www.talkchess.com/forum/viewtopic.php?p=727500&t=64790
+// clang-format off
+constexpr KnownMagic KnownRookMagics[SQUARE_NB] = {
+    {0x00280077ffebfffeULL, 26304},
+    {0x2004010201097fffULL, 35520},
+    {0x0010020010053fffULL, 38592},
+    {0x0040040008004002ULL,  8026},
+    {0x7fd00441ffffd003ULL, 22196},
+    {0x4020008887dffffeULL, 80870},
+    {0x004000888847ffffULL, 76747},
+    {0x006800fbff75fffdULL, 30400},
+    {0x000028010113ffffULL, 11115},
+    {0x0020040201fcffffULL, 18205},
+    {0x007fe80042ffffe8ULL, 53577},
+    {0x00001800217fffe8ULL, 62724},
+    {0x00001800073fffe8ULL, 34282},
+    {0x00001800e05fffe8ULL, 29196},
+    {0x00001800602fffe8ULL, 23806},
+    {0x000030002fffffa0ULL, 49481},
+    {0x00300018010bffffULL,  2410},
+    {0x0003000c0085fffbULL, 36498},
+    {0x0004000802010008ULL, 24478},
+    {0x0004002020020004ULL, 10074},
+    {0x0001002002002001ULL, 79315},
+    {0x0001001000801040ULL, 51779},
+    {0x0000004040008001ULL, 13586},
+    {0x0000006800cdfff4ULL, 19323},
+    {0x0040200010080010ULL, 70612},
+    {0x0000080010040010ULL, 83652},
+    {0x0004010008020008ULL, 63110},
+    {0x0000040020200200ULL, 34496},
+    {0x0002008010100100ULL, 84966},
+    {0x0000008020010020ULL, 54341},
+    {0x0000008020200040ULL, 60421},
+    {0x0000820020004020ULL, 86402},
+    {0x00fffd1800300030ULL, 50245},
+    {0x007fff7fbfd40020ULL, 76622},
+    {0x003fffbd00180018ULL, 84676},
+    {0x001fffde80180018ULL, 78757},
+    {0x000fffe0bfe80018ULL, 37346},
+    {0x0001000080202001ULL,   370},
+    {0x0003fffbff980180ULL, 42182},
+    {0x0001fffdff9000e0ULL, 45385},
+    {0x00fffefeebffd800ULL, 61659},
+    {0x007ffff7ffc01400ULL, 12790},
+    {0x003fffbfe4ffe800ULL, 16762},
+    {0x001ffff01fc03000ULL,     0},
+    {0x000fffe7f8bfe800ULL, 38380},
+    {0x0007ffdfdf3ff808ULL, 11098},
+    {0x0003fff85fffa804ULL, 21803},
+    {0x0001fffd75ffa802ULL, 39189},
+    {0x00ffffd7ffebffd8ULL, 58628},
+    {0x007fff75ff7fbfd8ULL, 44116},
+    {0x003fff863fbf7fd8ULL, 78357},
+    {0x001fffbfdfd7ffd8ULL, 44481},
+    {0x000ffff810280028ULL, 64134},
+    {0x0007ffd7f7feffd8ULL, 41759},
+    {0x0003fffc0c480048ULL,  1394},
+    {0x0001ffffafd7ffd8ULL, 40910},
+    {0x00ffffe4ffdfa3baULL, 66516},
+    {0x007fffef7ff3d3daULL,  3897},
+    {0x003fffbfdfeff7faULL,  3930},
+    {0x001fffeff7fbfc22ULL, 72934},
+    {0x0000020408001001ULL, 72662},
+    {0x0007fffeffff77fdULL, 56325},
+    {0x0003ffffbf7dfeecULL, 66501},
+    {0x0001ffff9dffa333ULL, 14826},
+};
+
+constexpr KnownMagic KnownBishopMagics[SQUARE_NB] = {
+    {0x007fbfbfbfbfbfffULL,  5378},
+    {0x0000a060401007fcULL,  4093},
+    {0x0001004008020000ULL,  4314},
+    {0x0000806004000000ULL,  6587},
+    {0x0000100400000000ULL,  6491},
+    {0x000021c100b20000ULL,  6330},
+    {0x0000040041008000ULL,  5609},
+    {0x00000fb0203fff80ULL, 22236},
+    {0x0000040100401004ULL,  6106},
+    {0x0000020080200802ULL,  5625},
+    {0x0000004010202000ULL, 16785},
+    {0x0000008060040000ULL, 16817},
+    {0x0000004402000000ULL,  6842},
+    {0x0000000801008000ULL,  7003},
+    {0x000007efe0bfff80ULL,  4197},
+    {0x0000000820820020ULL,  7356},
+    {0x0000400080808080ULL,  4602},
+    {0x00021f0100400808ULL,  4538},
+    {0x00018000c06f3fffULL, 29531},
+    {0x0000258200801000ULL, 45393},
+    {0x0000240080840000ULL, 12420},
+    {0x000018000c03fff8ULL, 15763},
+    {0x00000a5840208020ULL,  5050},
+    {0x0000020008208020ULL,  4346},
+    {0x0000804000810100ULL,  6074},
+    {0x0001011900802008ULL,  7866},
+    {0x0000804000810100ULL, 32139},
+    {0x000100403c0403ffULL, 57673},
+    {0x00078402a8802000ULL, 55365},
+    {0x0000101000804400ULL, 15818},
+    {0x0000080800104100ULL,  5562},
+    {0x00004004c0082008ULL,  6390},
+    {0x0001010120008020ULL,  7930},
+    {0x000080809a004010ULL, 13329},
+    {0x0007fefe08810010ULL,  7170},
+    {0x0003ff0f833fc080ULL, 27267},
+    {0x007fe08019003042ULL, 53787},
+    {0x003fffefea003000ULL,  5097},
+    {0x0000101010002080ULL,  6643},
+    {0x0000802005080804ULL,  6138},
+    {0x0000808080a80040ULL,  7418},
+    {0x0000104100200040ULL,  7898},
+    {0x0003ffdf7f833fc0ULL, 42012},
+    {0x0000008840450020ULL, 57350},
+    {0x00007ffc80180030ULL, 22813},
+    {0x007fffdd80140028ULL, 56693},
+    {0x00020080200a0004ULL,  5818},
+    {0x0000101010100020ULL,  7098},
+    {0x0007ffdfc1805000ULL,  4451},
+    {0x0003ffefe0c02200ULL,  4709},
+    {0x0000000820806000ULL,  4794},
+    {0x0000000008403000ULL, 13364},
+    {0x0000000100202000ULL,  4570},
+    {0x0000004040802000ULL,  4282},
+    {0x0004010040100400ULL, 14964},
+    {0x00006020601803f4ULL,  4026},
+    {0x0003ffdfdfc28048ULL,  4826},
+    {0x0000000820820020ULL,  7354},
+    {0x0000000008208060ULL,  4848},
+    {0x0000000000808020ULL, 15946},
+    {0x0000000001002020ULL, 14932},
+    {0x0000000401002008ULL, 16588},
+    {0x0000004040404040ULL,  6905},
+    {0x007fff9fdf7ff813ULL, 16076},
+};
+// clang-format on
+
 [[maybe_unused]] constexpr Bitboard constexpr_pext(Bitboard b, Bitboard m) {
     Bitboard result = 0, bit = 0;
     while (m)
@@ -76,30 +214,12 @@ namespace {
 
 // Computes all rook and bishop attacks at startup or optionally, compile time. Magic
 // bitboards are used to look up attacks of sliding pieces. As a reference see
-// https://www.chessprogramming.org/Magic_Bitboards. In particular, here we use
-// the so called "fancy" approach.
-#ifdef USE_COMPTIME_ATTACKS
-constexpr
-#endif
-  void
-  init_magics(PieceType             pt,
-              MagicMask             table[],
-              Magic                 magics[][2],
-              [[maybe_unused]] bool tableAlreadyInit) {
+// https://www.chessprogramming.org/Magic_Bitboards.
+constexpr void
+init_magics(PieceType pt, Magic::AttackData* table, Magic magics[][2], bool tableAlreadyInit) {
 #if !defined(USE_COMPTIME_ATTACKS)
     tableAlreadyInit = false;
 #endif
-
-#ifndef USE_PEXT
-    // Optimal PRNG seeds to pick the correct magics in the shortest time
-    int seeds[][RANK_NB] = {{8977, 44560, 54343, 38998, 5731, 95205, 104912, 17020},
-                            {728, 10316, 55013, 32803, 12281, 15100, 16645, 255}};
-
-    Bitboard occupancy[4096];
-    int      epoch[4096] = {}, cnt = 0;
-    Bitboard reference[4096] = {};
-#endif
-    int size = 0;
 
     for (Square s = SQ_A1; s <= SQ_H8; ++s)
     {
@@ -116,71 +236,44 @@ constexpr
         m.mask           = attacks & ~edges;
 #ifdef USE_PEXT
         m.pseudoAttacks = attacks;
-#else
-        m.shift = (Is64Bit ? 64 : 32) - popcount(m.mask);
-#endif
-        // Set the offset for the attacks table of the square. We have individual
-        // table sizes for each square with "Fancy Magic Bitboards".
-        m.attacks = s == SQ_A1 ? table : magics[s - 1][pt - BISHOP].attacks + size;
-        size      = 0;
+        m.attacks       = table;
 
         // Use Carry-Rippler trick to enumerate all subsets of masks[s] and
         // store the corresponding sliding attack bitboard in reference[].
-        Bitboard                  b           = 0;
-        [[maybe_unused]] Bitboard prevSliding = -1;
+        Bitboard b           = 0;
+        Bitboard prevSliding = -1;
         do
         {
-#ifdef USE_PEXT
             if (!tableAlreadyInit)
             {
                 Bitboard sliding = Bitboards::sliding_attack(pt, s, b);
-                m.attacks[size] =
-                  sliding != prevSliding ? constexpr_pext(sliding, attacks) : m.attacks[size - 1];
+                *table = sliding != prevSliding ? constexpr_pext(sliding, attacks) : *(table - 1);
                 prevSliding = sliding;
             }
-#else
-            occupancy[size] = b;
-            reference[size] = Bitboards::sliding_attack(pt, s, b);
-#endif
-
-            size++;
+            table++;
             b = (b - m.mask) & m.mask;
         } while (b);
-
-#ifndef USE_PEXT
-        PRNG rng(seeds[Is64Bit][rank_of(s)]);
-
-        // Find a magic for square 's' picking up an (almost) random number
-        // until we find the one that passes the verification test.
-        for (int i = 0; i < size;)
+#else
+        const KnownMagic& knownMagic = (pt == ROOK) ? KnownRookMagics[s] : KnownBishopMagics[s];
+        m.magic                      = knownMagic.magic;
+        m.attacks                    = &table[knownMagic.offset];
+        if (!tableAlreadyInit)
         {
-            for (m.magic = 0; popcount((m.magic * m.mask) >> 56) < 6;)
-                m.magic = rng.sparse_rand<Bitboard>();
-
-            // A good magic must map every possible occupancy to an index that
-            // looks up the correct sliding attack in the attacks[s] database.
-            // Note that we build up the database for square 's' as a side
-            // effect of verifying the magic. Keep track of the attempt count
-            // and save it in epoch[], little speed-up trick to avoid resetting
-            // m.attacks[] after every failed attempt.
-            for (++cnt, i = 0; i < size; ++i)
+            int      shift = 64 - (pt == ROOK ? 12 : 9);
+            Bitboard b     = 0;
+            do
             {
-                unsigned idx = m.index(occupancy[i]);
-
-                if (epoch[idx] < cnt)
-                {
-                    epoch[idx]     = cnt;
-                    m.attacks[idx] = reference[i];
-                }
-                else if (m.attacks[idx] != reference[i])
-                    break;
-            }
+                unsigned index   = ((b & m.mask) * m.magic) >> shift;
+                m.attacks[index] = Bitboards::sliding_attack(pt, s, b);
+                b                = (b - m.mask) & m.mask;
+            } while (b);
         }
 #endif
     }
 }
 
-#if defined(USE_COMPTIME_ATTACKS) && defined(USE_PEXT)
+#if defined(USE_COMPTIME_ATTACKS)
+    #ifdef USE_PEXT
 constexpr auto RookTable = []() {
     std::array<uint16_t, 0x19000> result{};
     Magic                         magics[64][2] = {};
@@ -193,10 +286,23 @@ constexpr auto BishopTable = []() {
     init_magics(BISHOP, result.data(), magics, false);
     return result;
 }();
+    #else
+constexpr auto AttackTable = []() {
+    std::array<Bitboard, 88772> result{};
+    Magic                       magics[64][2] = {};
+    init_magics(ROOK, result.data(), magics, false);
+    init_magics(BISHOP, result.data(), magics, false);
+    return result;
+}();
+    #endif
 #else
-std::array<MagicMask, 0x19000> RookTable;
-std::array<MagicMask, 0x1480>  BishopTable;
-#endif
+    #ifdef USE_PEXT
+std::array<MagicMask, 0x19000> RookTable{};
+std::array<MagicMask, 0x1480>  BishopTable{};
+    #else
+std::array<Bitboard, 88772> AttackTable{};
+    #endif
+#endif  // !USE_COMPTIME_ATTACKS
 }
 
 
@@ -211,8 +317,13 @@ void Bitboards::init() {
         for (Square s2 = SQ_A1; s2 <= SQ_H8; ++s2)
             SquareDistance[s1][s2] = std::max(distance<File>(s1, s2), distance<Rank>(s1, s2));
 
-    init_magics(ROOK, const_cast<MagicMask*>(RookTable.data()), Magics, true);
-    init_magics(BISHOP, const_cast<MagicMask*>(BishopTable.data()), Magics, true);
+#ifdef USE_PEXT
+    init_magics(ROOK, const_cast<Magic::AttackData*>(RookTable.data()), Magics, true);
+    init_magics(BISHOP, const_cast<Magic::AttackData*>(BishopTable.data()), Magics, true);
+#else
+    init_magics(ROOK, const_cast<Magic::AttackData*>(AttackTable.data()), Magics, true);
+    init_magics(BISHOP, const_cast<Magic::AttackData*>(AttackTable.data()), Magics, true);
+#endif
 
     for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
     {
