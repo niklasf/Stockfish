@@ -136,9 +136,33 @@ struct Magic {
     #endif
     }
 };
+
+#ifdef USE_HQ_BISHOP
+struct BishopMagic {
+    // Diagonal and anti-diagonal masks (excluding the piece's own square)
+    Bitboard mask1, mask2;
+    // Precomputed square_bb(sq), bswap(square_bb(sq))
+    Bitboard r, rr;
+
+    Bitboard hyperbola(Bitboard occupied, Bitboard mask) const {
+        Bitboard o   = occupied & mask;
+        Bitboard fwd = o - r;
+        Bitboard rev = __builtin_bswap64(o) - rr;
+        return (fwd ^ __builtin_bswap64(rev)) & mask;
+    }
+
+    Bitboard attacks_bb(Bitboard occupied) const {
+        return hyperbola(occupied, mask1) | hyperbola(occupied, mask2);
+    }
+};
+#endif
+
 #endif
 
 extern Magic Magics[SQUARE_NB][2];
+#ifdef USE_HQ_BISHOP
+extern BishopMagic BishopMagics[SQUARE_NB];
+#endif
 
 constexpr Bitboard square_bb(Square s) {
     assert(is_ok(s));
@@ -493,6 +517,10 @@ inline Bitboard attacks_bb(Square s, Bitboard occupied) {
     {
     case BISHOP :
     case ROOK :
+#ifdef USE_HQ_BISHOP
+        if constexpr (Pt == BISHOP)
+            return BishopMagics[s].attacks_bb(occupied);
+#endif
         return Magics[s][Pt - BISHOP].attacks_bb(occupied);
     case QUEEN :
         return attacks_bb<BISHOP>(s, occupied) | attacks_bb<ROOK>(s, occupied);

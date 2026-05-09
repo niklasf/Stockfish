@@ -842,6 +842,13 @@ ifeq ($(pext),yes)
 	endif
 endif
 
+### 3.7.1 bswap-based bishop attacks on x86 without pext
+ifeq ($(findstring x86,$(ARCH)),x86)
+ifneq ($(pext),yes)
+	CXXFLAGS += -DUSE_HQ_BISHOP
+endif
+endif
+
 ### 3.8.1 Try to include git info for versioning and avoid recompiles if nothing changes
 BUILD_SHA_FILE  := .build_sha.txt
 BUILD_DATE_FILE := .build_date.txt

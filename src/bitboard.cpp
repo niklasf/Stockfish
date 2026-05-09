@@ -62,7 +62,7 @@ std::string Bitboards::pretty(Bitboard b) {
     return s;
 }
 
-#ifdef USE_HYPERBOLA_QUINT
+#if defined(USE_HYPERBOLA_QUINT) || defined(USE_HQ_BISHOP)
 static Bitboard line_mask(Square sq, Direction d1, Direction d2) {
     Bitboard mask = 0, dest;
     for (Direction d : {d1, d2})
@@ -76,7 +76,9 @@ static Bitboard line_mask(Square sq, Direction d1, Direction d2) {
     }
     return mask;
 }
+#endif
 
+#ifdef USE_HYPERBOLA_QUINT
 static void init_magics(Magic magics[][2]) {
     for (Square s = SQ_A1; s <= SQ_H8; ++s)
     {
@@ -228,9 +230,26 @@ constexpr auto BishopTable = []() {
 }();
     #else
 std::array<MagicMask, 0x19000> RookTable;
+    #ifndef USE_HQ_BISHOP
 std::array<MagicMask, 0x1480>  BishopTable;
     #endif
+    #endif
 }
+
+#ifdef USE_HQ_BISHOP
+alignas(64) BishopMagic BishopMagics[SQUARE_NB];
+
+static void init_bishop_magics() {
+    for (Square s = SQ_A1; s <= SQ_H8; ++s)
+    {
+        BishopMagic& bishop = BishopMagics[s];
+        bishop.mask1        = line_mask(s, NORTH_EAST, SOUTH_WEST);
+        bishop.mask2        = line_mask(s, NORTH_WEST, SOUTH_EAST);
+        bishop.r            = square_bb(s);
+        bishop.rr           = square_bb(Square(int(s) ^ 56));
+    }
+}
+#endif
 
 #endif
 
@@ -247,6 +266,9 @@ void Bitboards::init() {
 
 #ifdef USE_HYPERBOLA_QUINT
     init_magics(Magics);
+#elif defined(USE_HQ_BISHOP)
+    init_bishop_magics();
+    init_magics(ROOK, const_cast<MagicMask*>(RookTable.data()), Magics, true);
 #else
     init_magics(ROOK, const_cast<MagicMask*>(RookTable.data()), Magics, true);
     init_magics(BISHOP, const_cast<MagicMask*>(BishopTable.data()), Magics, true);
