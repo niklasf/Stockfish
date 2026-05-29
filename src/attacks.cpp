@@ -115,8 +115,7 @@ static void init_dual_magics(DualMagic magics[]) {
         m.r                 = square_bb(s) * 2;
         m.rr                = square_bb(Square(63 - int(s))) * 2;
         m.rankAttacksLookup = RankAttacks[int(file_of(s))].data();
-        m.shift             = 8 * int(rank_of(s));
-        m.indexControl      = (6 << 8) | (m.shift + 1);
+        m.indexControl      = (6 << 8) | (8 * int(rank_of(s)) + 1);
     }
 }
 

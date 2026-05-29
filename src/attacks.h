@@ -84,8 +84,7 @@ struct DualMagic {
     Bitboard r, rr;
 
     const uint8_t* RESTRICT rankAttacksLookup;
-    int                     shift;         // 8 * rank_of(sq), for placing rank attacks back on the board
-    int                     indexControl; // BEXTR control for extracting 6-bit occupancy index
+    unsigned long long      indexControl; // BEXTR control for extracting 6-bit occupancy index
 
     // We always compute [bishop, rook] attacks at once, then rely on
     // compiler's DCE and CSE to eliminate unneeded re-computations or extractions.
@@ -118,7 +117,7 @@ struct DualMagic {
           _mm_or_si128(_mm256_extracti128_si256(result, 1), _mm256_castsi256_si128(result));
 
         Bitboard firstRankAttacks = rankAttacksLookup[__builtin_ia32_bextr_u64(occupied, indexControl)];
-        Bitboard rankAttacks      = firstRankAttacks << shift;
+        Bitboard rankAttacks      = firstRankAttacks << ((indexControl - 1) % 64);
 
         // [bishop, rook]
         return {_mm_extract_epi64(rookBishop, 1), _mm_cvtsi128_si64(rookBishop) + rankAttacks};
