@@ -77,29 +77,15 @@ static void init_magics(Magic magics[][2]) {
 
 #elif defined(USE_DUAL_HYPERBOLA_QUINT)
 
-// Sliding attacks within a rank, indexed by the slider's file and the
-// 7-bit rank occupancy (excluding the h-file edge), yielding the 8-bit attack
-// set on that rank
+// Packed sliding attacks within a rank, indexed as
+// RankAttacks[file >> 1][(file & 1) + (occupancy & 0x7e)], where the rank
+// occupancy is masked to remove the edge squares and hence always even.
 constexpr auto RankAttacks = []() {
-    std::array<std::array<uint8_t, 128>, FILE_NB> table{};
-    for (int file = 0; file < 8; ++file)
-        for (int occ = 0; occ < 128; ++occ)
-        {
-            uint8_t attacks = 0;
-            for (int f = file + 1; f <= 7; ++f)
-            {
-                attacks |= uint8_t(1 << f);
-                if (occ & (1 << f))
-                    break;
-            }
-            for (int f = file - 1; f >= 0; --f)
-            {
-                attacks |= uint8_t(1 << f);
-                if (occ & (1 << f))
-                    break;
-            }
-            table[file][occ] = attacks;
-        }
+    std::array<std::array<uint8_t, 128>, FILE_NB / 2> table{};
+    for (int file = 0; file < FILE_NB; ++file)
+        for (int occ = 0; occ < 128; occ += 2)
+            table[file >> 1][(file & 1) + occ] =
+              uint8_t(sliding_attack(ROOK, Square(file), Bitboard(occ)));
     return table;
 }();
 
@@ -113,7 +99,8 @@ static void init_dual_magics(DualMagic magics[]) {
         m.maskAntidiag      = line_mask(s, NORTH_WEST, SOUTH_EAST);
         m.r                 = square_bb(s) * 2;
         m.rr                = square_bb(Square(63 - int(s))) * 2;
-        m.rankAttacksLookup = RankAttacks[int(file_of(s))].data();
+        int file            = int(file_of(s));
+        m.rankAttacksLookup = &RankAttacks[file >> 1][file & 1];
         m.shift             = 8 * int(rank_of(s));
     }
 }
