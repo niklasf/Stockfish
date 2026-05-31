@@ -78,14 +78,13 @@ static void init_magics(Magic magics[][2]) {
 #elif defined(USE_DUAL_HYPERBOLA_QUINT)
 
 // Sliding attacks within a rank, indexed by the slider's file and the
-// 6-bit occupancy of non-edge rank squares, yielding the 8-bit attack set
-// on that rank
+// 7-bit rank occupancy (excluding the h-file edge), yielding the 8-bit attack
+// set on that rank
 constexpr auto RankAttacks = []() {
-    std::array<std::array<uint8_t, 64>, FILE_NB> table{};
+    std::array<std::array<uint8_t, 128>, FILE_NB> table{};
     for (int file = 0; file < 8; ++file)
-        for (int occ6 = 0; occ6 < 64; ++occ6)
+        for (int occ = 0; occ < 128; ++occ)
         {
-            int     occ     = occ6 << 1;
             uint8_t attacks = 0;
             for (int f = file + 1; f <= 7; ++f)
             {
@@ -99,7 +98,7 @@ constexpr auto RankAttacks = []() {
                 if (occ & (1 << f))
                     break;
             }
-            table[file][occ6] = attacks;
+            table[file][occ] = attacks;
         }
     return table;
 }();
@@ -116,7 +115,6 @@ static void init_dual_magics(DualMagic magics[]) {
         m.rr                = square_bb(Square(63 - int(s))) * 2;
         m.rankAttacksLookup = RankAttacks[int(file_of(s))].data();
         m.shift             = 8 * int(rank_of(s));
-        m.indexShift        = m.shift + 1;
     }
 }
 
