@@ -305,56 +305,6 @@ struct DirtyPiece {
     Piece  remove_pc, add_pc;
 };
 
-// Keep track of what threats change on the board (used by NNUE)
-struct DirtyThreat {
-    static constexpr int PcSqOffset         = 0;
-    static constexpr int ThreatenedSqOffset = 8;
-    static constexpr int ThreatenedPcOffset = 16;
-    static constexpr int PcOffset           = 20;
-
-    DirtyThreat() { /* don't initialize data */ }
-    DirtyThreat(u32 raw) :
-        data(raw) {}
-    DirtyThreat(Piece pc, Piece threatened_pc, Square pc_sq, Square threatened_sq, bool add) {
-        data = (u32(add) << 31) | (pc << PcOffset) | (threatened_pc << ThreatenedPcOffset)
-             | (threatened_sq << ThreatenedSqOffset) | (pc_sq << PcSqOffset);
-    }
-
-    Piece  pc() const { return static_cast<Piece>(data >> PcOffset & 0xf); }
-    Piece  threatened_pc() const { return static_cast<Piece>(data >> ThreatenedPcOffset & 0xf); }
-    Square threatened_sq() const { return static_cast<Square>(data >> ThreatenedSqOffset & 0xff); }
-    Square pc_sq() const { return static_cast<Square>(data >> PcSqOffset & 0xff); }
-    bool   add() const { return data >> 31; }
-    u32    raw() const { return data; }
-
-   private:
-    u32 data;
-};
-
-// A piece can be involved in at most 8 outgoing attacks and 16 incoming attacks.
-// Moving a piece also can reveal at most 8 discovered attacks.
-// This implies that a non-castling move can change at most (8 + 16) * 3 + 8 = 80 features.
-// By similar logic, a castling move can change at most (5 + 1 + 3 + 9) * 2 = 36 features.
-// Thus, 80 should work as an upper bound. Finally, 16 entries are added to accommodate
-// unmasked vector stores near the end of the list.
-
-using DirtyThreatList = ValueList<DirtyThreat, 96>;
-
-struct DirtyThreats {
-    DirtyThreatList list;
-};
-
-struct DirtyPawnPairs {
-    Bitboard before[COLOR_NB];
-    Bitboard after[COLOR_NB];
-};
-
-struct Dirties {
-    DirtyPiece     dirtyPiece;
-    DirtyThreats   dirtyThreats;
-    DirtyPawnPairs dirtyPawnPairs;
-};
-
     #define ENABLE_INCR_OPERATORS_ON(T) \
         constexpr T& operator++(T& d) { return d = T(int(d) + 1); } \
         constexpr T& operator--(T& d) { return d = T(int(d) - 1); }

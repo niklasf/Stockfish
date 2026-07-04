@@ -16,9 +16,9 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-//Definition of input features HalfKAv2_hm of NNUE evaluation function
+// Definition of input features P_hm of NNUE evaluation function
 
-#include "half_ka_v2_hm.h"
+#include "p_hm.h"
 
 #include "../../types.h"
 #include "../nnue_common.h"
@@ -30,14 +30,14 @@
 namespace Stockfish::Eval::NNUE::Features {
 
 #if defined(USE_AVX512ICL)
-void HalfKAv2_hm::write_indices(const std::array<Piece, SQUARE_NB>& oldPieces,
-                                const std::array<Piece, SQUARE_NB>& newPieces,
-                                Bitboard                            removedBB,
-                                Bitboard                            addedBB,
-                                Color                               perspective,
-                                Square                              ksq,
-                                IndexList&                          removed,
-                                IndexList&                          added) {
+void P_hm::write_indices(const std::array<Piece, SQUARE_NB>& oldPieces,
+                         const std::array<Piece, SQUARE_NB>& newPieces,
+                         Bitboard                            removedBB,
+                         Bitboard                            addedBB,
+                         Color                               perspective,
+                         Square                              ksq,
+                         IndexList&                          removed,
+                         IndexList&                          added) {
 
     auto* write_removed = removed.make_space(popcount(removedBB));
     auto* write_added   = added.make_space(popcount(addedBB));
@@ -45,16 +45,15 @@ void HalfKAv2_hm::write_indices(const std::array<Piece, SQUARE_NB>& oldPieces,
     const __m512i vecOldPieces = _mm512_loadu_si512(oldPieces.data());
     const __m512i vecNewPieces = _mm512_loadu_si512(newPieces.data());
 
-    // PieceSquareIndex and KingBuckets are multiples of 64, while s and orient
-    // use only the low six bits. Therefore no carry crosses bit 6, and
-    // (s ^ orient) + psi[pc] + bucket == s ^ (psi[pc] + bucket + orient),
-    // allowing the orientation to be folded into the per-piece lookup offset.
+    // PieceSquareIndex entries are multiples of 64, while s and orient use only
+    // the low six bits. Therefore no carry crosses bit 6, and
+    // (s ^ orient) + psi[pc] == s ^ (psi[pc] + orient), allowing the orientation
+    // to be folded into the per-piece lookup offset.
     const u16     flip   = 56 * perspective;
     const u16     orient = u16(OrientTBL[ksq]) ^ flip;
     const __m512i psi =
       _mm512_castsi256_si512(_mm256_loadu_si256((const __m256i*) PieceSquareIndex[perspective]));
-    const __m512i psi_plus_offset =
-      _mm512_add_epi16(psi, _mm512_set1_epi16(u16(KingBuckets[int(ksq) ^ flip] + orient)));
+    const __m512i psi_plus_offset = _mm512_add_epi16(psi, _mm512_set1_epi16(orient));
 
     __m512i removed_squares = _mm512_maskz_compress_epi8(removedBB, AllSquares);
     __m512i added_squares   = _mm512_maskz_compress_epi8(addedBB, AllSquares);
@@ -76,17 +75,12 @@ void HalfKAv2_hm::write_indices(const std::array<Piece, SQUARE_NB>& oldPieces,
 }
 #endif
 
-// Index of a feature for a given king position and another piece on some square
-
-IndexType HalfKAv2_hm::make_index(Color perspective, Square s, Piece pc, Square ksq) {
+IndexType P_hm::make_index(Color perspective, Square s, Piece pc, Square ksq) {
     const IndexType flip = 56 * perspective;
-    return (IndexType(s) ^ OrientTBL[ksq] ^ flip) + PieceSquareIndex[perspective][pc]
-         + KingBuckets[int(ksq) ^ flip];
+    return (IndexType(s) ^ OrientTBL[ksq] ^ flip) + PieceSquareIndex[perspective][pc];
 }
 
-// Get a list of indices for recently changed features
-
-void HalfKAv2_hm::append_changed_indices(
+void P_hm::append_changed_indices(
   Color perspective, Square ksq, const DiffType& diff, IndexList& removed, IndexList& added) {
     removed.push_back(make_index(perspective, diff.from, diff.pc, ksq));
     if (diff.to != SQ_NONE)
@@ -99,8 +93,8 @@ void HalfKAv2_hm::append_changed_indices(
         added.push_back(make_index(perspective, diff.add_sq, diff.add_pc, ksq));
 }
 
-bool HalfKAv2_hm::requires_refresh(const DiffType& diff, Color perspective) {
-    return diff.pc == make_piece(perspective, KING);
+bool P_hm::requires_refresh(const DiffType& diff, Color perspective) {
+    return diff.pc == make_piece(perspective, KING) && OrientTBL[diff.from] != OrientTBL[diff.to];
 }
 
 }  // namespace Stockfish::Eval::NNUE::Features

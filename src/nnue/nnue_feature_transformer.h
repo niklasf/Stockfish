@@ -86,24 +86,12 @@ class FeatureTransformer {
     using OutputType = TransformedFeatureType;
 
     // Number of input/output dimensions
-    static constexpr IndexType ThreatInputDimensions = ThreatFeatureSet::Dimensions;
-    static constexpr IndexType PairInputDimensions   = PairFeatureSet::Dimensions;
-    static constexpr IndexType PsqDimensions         = PSQFeatureSet::Dimensions;
-    static constexpr IndexType ThreatAndPpDimensions = ThreatInputDimensions + PairInputDimensions;
-    static constexpr IndexType InputDimensions       = PsqDimensions + ThreatAndPpDimensions;
-    static constexpr IndexType OutputDimensions      = HalfDimensions;
-    static constexpr IndexType ThreatWeightSize      = ThreatInputDimensions * HalfDimensions;
-    static constexpr IndexType ThreatPsqtWeightSize  = ThreatInputDimensions * PSQTBuckets;
-    static constexpr IndexType PairWeightSize        = PairInputDimensions * HalfDimensions;
-    static constexpr IndexType PairPsqtWeightSize    = PairInputDimensions * PSQTBuckets;
-    static constexpr IndexType ThreatAndPpWeightSize = ThreatAndPpDimensions * HalfDimensions;
-    static constexpr IndexType ThreatAndPpPsqtSize   = ThreatAndPpDimensions * PSQTBuckets;
+    static constexpr IndexType InputDimensions  = FeatureSet::Dimensions;
+    static constexpr IndexType OutputDimensions = HalfDimensions;
 
-    using BiasesArray            = std::array<BiasType, HalfDimensions>;
-    using WeightArray            = std::array<WeightType, HalfDimensions * PsqDimensions>;
-    using ThreatAndPpWeightArray = std::array<ThreatWeightType, ThreatAndPpWeightSize>;
-    using PsqtWeightArray        = std::array<PSQTWeightType, PSQTBuckets * PsqDimensions>;
-    using ThreatAndPpPsqtArray   = std::array<PSQTWeightType, ThreatAndPpPsqtSize>;
+    using BiasesArray     = std::array<BiasType, HalfDimensions>;
+    using WeightArray     = std::array<WeightType, HalfDimensions * InputDimensions>;
+    using PsqtWeightArray = std::array<PSQTWeightType, PSQTBuckets * InputDimensions>;
 
     // Size of forward propagation buffer
     static constexpr usize BufferSize = OutputDimensions * sizeof(OutputType);
@@ -143,38 +131,24 @@ class FeatureTransformer {
 
     // Hash value embedded in the evaluation file
     static constexpr u32 get_hash_value() {
-        return combine_hash(
-                 {ThreatFeatureSet::HashValue, PairFeatureSet::HashValue, PSQFeatureSet::HashValue})
-             ^ (OutputDimensions * 2);
+        return FeatureSet::HashValue ^ (OutputDimensions * 2);
     }
 
     void permute_weights() {
         permute<16>(biases, PackusEpi16Order);
         permute<16>(weights, PackusEpi16Order);
 
-        permute<8>(threatAndPpWeights, PackusEpi16Order);
     }
 
     void unpermute_weights() {
         permute<16>(biases, InversePackusEpi16Order);
         permute<16>(weights, InversePackusEpi16Order);
-        permute<8>(threatAndPpWeights, InversePackusEpi16Order);
     }
-
-    ThreatWeightType* threatWeightData() { return threatAndPpWeights.data(); }
-    ThreatWeightType* pawnPairWeightData() { return threatWeightData() + ThreatWeightSize; }
-    PSQTWeightType*   threatPsqtData() { return threatAndPpPsqtWeights.data(); }
-    PSQTWeightType*   pawnPairPsqtData() { return threatPsqtData() + ThreatPsqtWeightSize; }
 
 
     // Read network parameters
     bool read_parameters(std::istream& stream) {
         read_leb_128(stream, biases);
-
-        read_little_endian(stream, threatWeightData(), ThreatWeightSize);
-        read_leb_128(stream, threatPsqtData(), ThreatPsqtWeightSize);
-        read_little_endian(stream, pawnPairWeightData(), PairWeightSize);
-        read_leb_128(stream, pawnPairPsqtData(), PairPsqtWeightSize);
 
         read_leb_128(stream, weights);
         read_leb_128(stream, psqtWeights);
@@ -192,12 +166,6 @@ class FeatureTransformer {
 
         write_leb_128<BiasType>(stream, copy->biases);
 
-
-        write_little_endian(stream, copy->threatWeightData(), ThreatWeightSize);
-        write_leb_128(stream, copy->threatPsqtData(), ThreatPsqtWeightSize);
-        write_little_endian(stream, copy->pawnPairWeightData(), PairWeightSize);
-        write_leb_128(stream, copy->pawnPairPsqtData(), PairPsqtWeightSize);
-
         write_leb_128<WeightType>(stream, copy->weights);
         write_leb_128<PSQTWeightType>(stream, copy->psqtWeights);
 
@@ -210,9 +178,6 @@ class FeatureTransformer {
         hash_combine(h, get_raw_data_hash(biases));
         hash_combine(h, get_raw_data_hash(weights));
         hash_combine(h, get_raw_data_hash(psqtWeights));
-
-        hash_combine(h, get_raw_data_hash(threatAndPpWeights));
-        hash_combine(h, get_raw_data_hash(threatAndPpPsqtWeights));
 
         hash_combine(h, get_hash_value());
 
@@ -432,14 +397,7 @@ class FeatureTransformer {
    public:
     alignas(CacheLineSize) BiasesArray biases;
     alignas(CacheLineSize) WeightArray weights;
-
-    // Threats and pawn-pair features are concatenated into one array to allow for a single index to address either.
-    // The first pawn-pair feature is at index ThreatFeatureSet::Dimensions.
-    static_assert(PairFeatureSet::IndexBase == ThreatFeatureSet::Dimensions);
-
-    alignas(CacheLineSize) ThreatAndPpWeightArray threatAndPpWeights;
     alignas(CacheLineSize) PsqtWeightArray psqtWeights;
-    alignas(CacheLineSize) ThreatAndPpPsqtArray threatAndPpPsqtWeights;
 };
 
 }  // namespace Stockfish::Eval::NNUE

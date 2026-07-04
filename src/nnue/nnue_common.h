@@ -55,11 +55,10 @@
 
 namespace Stockfish::Eval::NNUE {
 
-using BiasType         = i16;
-using ThreatWeightType = i8;
-using WeightType       = i16;
-using PSQTWeightType   = i32;
-using IndexType        = u32;
+using BiasType       = i16;
+using WeightType     = i16;
+using PSQTWeightType = i32;
+using IndexType      = u32;
 
 // Version of the evaluation file
 constexpr u32 Version = 0x6A448AFAu;

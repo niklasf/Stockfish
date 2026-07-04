@@ -41,7 +41,7 @@ struct alignas(CacheLineSize) Accumulator;
 class FeatureTransformer;
 
 // Class that holds the result of affine transformation of input features,
-// combined HalfKA + Threats
+// Input feature accumulator
 struct alignas(CacheLineSize) Accumulator {
     std::array<std::array<i16, L1>, COLOR_NB>          accumulation;
     std::array<std::array<i32, PSQTBuckets>, COLOR_NB> psqtAccumulation;
@@ -83,13 +83,15 @@ struct AccumulatorCaches {
                 entry.clear(network.featureTransformer.biases);
     }
 
-    std::array<Entry, COLOR_NB>& operator[](Square sq) { return entries[sq]; }
+    std::array<Entry, COLOR_NB>& operator[](IndexType bucket) { return entries[bucket]; }
 
-    std::array<std::array<Entry, COLOR_NB>, SQUARE_NB> entries;
+    std::array<std::array<Entry, COLOR_NB>, 2> entries;
 };
 
 
-struct AccumulatorState: public Accumulator, Dirties {};
+struct AccumulatorState: public Accumulator {
+    DirtyPiece dirtyPiece;
+};
 
 class AccumulatorStack {
    public:
@@ -98,7 +100,7 @@ class AccumulatorStack {
     [[nodiscard]] const AccumulatorState& latest() const noexcept;
 
     void     reset() noexcept;
-    Dirties& push() noexcept;
+    DirtyPiece& push() noexcept;
     void     pop() noexcept;
 
     void evaluate(const Position&           pos,
