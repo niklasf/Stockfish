@@ -139,6 +139,7 @@ class AffineTransformSparseInput {
     #elif defined(USE_SSSE3)
         using invec_t  = __m128i;
         using outvec_t = __m128i;
+        #define vec_add_32 _mm_add_epi32
         #define vec_set_32 _mm_set1_epi32
         #define vec_add_dpbusd_32 SIMD::m128_add_dpbusd_epi32
     #elif defined(USE_NEON_DOTPROD)
@@ -171,7 +172,7 @@ class AffineTransformSparseInput {
         constexpr IndexType NumRegs =
     #if (defined(USE_VNNI) && defined(USE_AVX512)) || defined(USE_NEON_DOTPROD)
           3 * NumAccums;
-    #elif defined(USE_AVXVNNI)
+    #elif defined(USE_AVXVNNI) || defined(__wasm_relaxed_simd__)
           2 * NumAccums;
     #else
           NumAccums;
@@ -182,7 +183,7 @@ class AffineTransformSparseInput {
         for (IndexType k = 0; k < NumAccums; ++k)
             acc[k] = biasvec[k];
 
-    #if defined(USE_AVXVNNI)
+    #if defined(USE_AVXVNNI) || defined(__wasm_relaxed_simd__)
         for (IndexType k = NumAccums; k < NumRegs; ++k)
             acc[k] = vec_set_32(0);
     #elif defined(USE_NEON_DOTPROD)
@@ -260,7 +261,7 @@ class AffineTransformSparseInput {
             asm("" : "+r"(base_addr), "+r"(weights_base));  // opt barrier
         #endif
 
-        #if defined(USE_AVXVNNI)
+        #if defined(USE_AVXVNNI) || defined(__wasm_relaxed_simd__)
             while (bits)
             {
                 const isize   i0   = pop_lsb(bits);
@@ -354,7 +355,7 @@ class AffineTransformSparseInput {
         #endif
         }
 
-        #if defined(USE_AVXVNNI)
+        #if defined(USE_AVXVNNI) || defined(__wasm_relaxed_simd__)
         for (IndexType l = 0; l < NumAccums; ++l)
             acc[l] = vec_add_32(acc[l], acc[l + NumAccums]);
         #elif defined(USE_NEON_DOTPROD)

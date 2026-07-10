@@ -229,6 +229,7 @@ class AffineTransform {
     #elif defined(USE_SSSE3)
             using vec_t = __m128i;
         #define vec_set_32 _mm_set1_epi32
+        #define vec_add_32 _mm_add_epi32
         #define vec_add_dpbusd_32 SIMD::m128_add_dpbusd_epi32
     #elif defined(USE_NEON_DOTPROD)
             using vec_t = int32x4_t;
@@ -255,7 +256,7 @@ class AffineTransform {
             constexpr IndexType NumChunks = ceil_to_multiple<IndexType>(InputDimensions, 8) / 4;
             constexpr IndexType NumAccums = OutputDimensions / OutputSimdWidth;
 
-    #if defined(USE_VNNI) || defined(USE_NEON_DOTPROD)
+    #if defined(USE_VNNI) || defined(USE_NEON_DOTPROD) || defined(__wasm_relaxed_simd__)
             constexpr IndexType NumRegs = 2 * NumAccums;
     #else
             constexpr IndexType NumRegs = NumAccums;
@@ -269,7 +270,7 @@ class AffineTransform {
                 acc[k] = vec_set_32(0);
 
             IndexType i = 0;
-    #if defined(USE_VNNI) || defined(USE_NEON_DOTPROD)
+    #if defined(USE_VNNI) || defined(USE_NEON_DOTPROD) || defined(__wasm_relaxed_simd__)
             for (; i < NumChunks; i += 2)
             {
                 const vec_t in0 = vec_set_32(load_as<i32>(input + i * sizeof(i32)));
