@@ -517,7 +517,7 @@ ifeq ($(COMP),gcc)
 			LDFLAGS += -m$(bits)
 		endif
 	else ifeq ($(arch),loongarch64)
-		CXXFLAGS += -latomic
+		LDFLAGS += -latomic
 	else ifneq ($(arch),wasm32)
 		CXXFLAGS += -m$(bits)
 		LDFLAGS += -m$(bits)
@@ -588,7 +588,7 @@ ifeq ($(COMP),clang)
 			LDFLAGS += -m$(bits)
 		endif
 	else ifeq ($(arch),loongarch64)
-		CXXFLAGS += -latomic
+		LDFLAGS += -latomic
 	else
 		CXXFLAGS += -m$(bits)
 		LDFLAGS += -m$(bits)
